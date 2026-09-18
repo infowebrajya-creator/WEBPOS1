@@ -3350,15 +3350,30 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       Generate unique, secure table QR codes. Guests simply scan their table's code, which automatically opens the digital menu, locks their table location, and enables direct checkout.
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setShowAddTable(true);
-                    }}
-                    className="px-4 py-2.5 bg-stone-900 hover:bg-stone-850 text-white font-mono font-semibold text-[11px] tracking-widest uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto border border-stone-900"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Deploy New Table</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const deployed = LocalDB.deployDefaultTables(4);
+                        setTables(deployed);
+                        if (deployed.length > 0) setSelectedTableForQr(deployed[0]);
+                      }}
+                      className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-250 font-mono font-semibold text-[11px] tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto shadow-2xs"
+                      title="Instantly deploy 4 standard tables (Table 01 to 04)"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Deploy 4 Tables</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddTable(true);
+                      }}
+                      className="px-4 py-2.5 bg-stone-900 hover:bg-stone-850 text-white font-mono font-semibold text-[11px] tracking-widest uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto border border-stone-900"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Deploy New Table</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Main Two-Column split Workspace */}
@@ -3390,7 +3405,32 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
  
                      {/* Table Bento List */}
                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                       {tables.map((table) => {
+                       {tables.length === 0 ? (
+                         <div className="col-span-full py-12 px-4 text-center bg-stone-50 border border-dashed border-stone-250 rounded-xl space-y-3">
+                           <div className="w-10 h-10 rounded-full bg-stone-200 text-stone-600 flex items-center justify-center mx-auto">
+                             <QrCode className="w-5 h-5" />
+                           </div>
+                           <div className="space-y-1">
+                             <p className="text-sm font-bold text-stone-800">No Dining Tables Deployed</p>
+                             <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                               Deploy 4 standard restaurant dining tables (Table 01 to Table 04) with capacities and instant self-ordering QR codes.
+                             </p>
+                           </div>
+                           <button
+                             type="button"
+                             onClick={() => {
+                               const deployed = LocalDB.deployDefaultTables(4);
+                               setTables(deployed);
+                               if (deployed.length > 0) setSelectedTableForQr(deployed[0]);
+                             }}
+                             className="inline-flex items-center gap-2 px-4 py-2 bg-[#d4af37] hover:bg-[#b5952f] text-stone-950 text-xs font-mono font-bold uppercase tracking-wider rounded-lg shadow-xs cursor-pointer transition-colors"
+                           >
+                             <Sparkles className="w-3.5 h-3.5" />
+                             <span>Deploy 4 Tables Now</span>
+                           </button>
+                         </div>
+                       ) : (
+                         tables.map((table) => {
                          const isSelected = selectedTableForQr?.id === table.id;
                          
                          // Status styling configuration
@@ -3481,7 +3521,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                              </div>
                            </div>
                          );
-                       })}
+                       }))}
                      </div>
                   </div>
 

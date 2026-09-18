@@ -323,6 +323,38 @@ export function stringToNumericId(str: string): number {
   return Math.abs(hash) % 9007199254740991; // Safe inside JS 53-bit float and Postgres bigint
 }
 
+// 4 Standard Deployed Dining Tables for Restaurant POS & QR Self-Ordering
+export const DEFAULT_DEPLOYED_TABLES: RestaurantTable[] = [
+  {
+    id: "tbl-01",
+    tableNumber: "01",
+    capacity: 2,
+    seatingArea: "Main Dining Hall",
+    status: "Available"
+  },
+  {
+    id: "tbl-02",
+    tableNumber: "02",
+    capacity: 4,
+    seatingArea: "Main Dining Hall",
+    status: "Available"
+  },
+  {
+    id: "tbl-03",
+    tableNumber: "03",
+    capacity: 4,
+    seatingArea: "Family Section",
+    status: "Available"
+  },
+  {
+    id: "tbl-04",
+    tableNumber: "04",
+    capacity: 6,
+    seatingArea: "VIP Lounge",
+    status: "Available"
+  }
+];
+
 // Database state managers with both offline localStorage caching and full-stack Express API integration
 export class LocalDB {
   static apiCallCount = 0;
@@ -404,14 +436,27 @@ export class LocalDB {
   static getTables(): RestaurantTable[] {
     const stored = localStorage.getItem("ij_tables");
     if (!stored) {
-      localStorage.setItem("ij_tables", JSON.stringify([]));
-      return [];
+      this.saveTables(DEFAULT_DEPLOYED_TABLES);
+      return [...DEFAULT_DEPLOYED_TABLES];
     }
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        this.saveTables(DEFAULT_DEPLOYED_TABLES);
+        return [...DEFAULT_DEPLOYED_TABLES];
+      }
+      return parsed;
     } catch {
-      return [];
+      this.saveTables(DEFAULT_DEPLOYED_TABLES);
+      return [...DEFAULT_DEPLOYED_TABLES];
     }
+  }
+
+  static deployDefaultTables(count: number = 4): RestaurantTable[] {
+    const tablesToDeploy = DEFAULT_DEPLOYED_TABLES.slice(0, count);
+    this.saveTables(tablesToDeploy);
+    this.addAuditLog("Tables Deployed", `Deployed ${tablesToDeploy.length} dining tables (Table 01 - Table 0${tablesToDeploy.length}) with QR self-ordering support.`, "Admin System");
+    return tablesToDeploy;
   }
 
   static saveTables(tables: RestaurantTable[]): void {
