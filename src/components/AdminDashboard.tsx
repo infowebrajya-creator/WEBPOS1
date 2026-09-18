@@ -1631,6 +1631,66 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     return items;
   }, [menuItems, menuFilterCategory, menuSearch]);
 
+  const [isHardRefreshing, setIsHardRefreshing] = useState(false);
+
+  // Performs a true browser hard refresh (Ctrl/Cmd + Shift + R): flushes CacheStorage, unregisters Service Workers, clears session caches, and reloads with cache-busting
+  const handleHardRefresh = async () => {
+    setIsHardRefreshing(true);
+    try {
+      // 1. Unregister all service workers so cached application assets are evicted
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((reg) => reg.unregister()));
+        } catch (err) {
+          console.warn("Service worker unregister error during hard refresh:", err);
+        }
+      }
+
+      // 2. Clear all CacheStorage entries (PWA & HTTP resource caches)
+      if (typeof window !== "undefined" && "caches" in window) {
+        try {
+          const cacheKeys = await window.caches.keys();
+          await Promise.all(cacheKeys.map((key) => window.caches.delete(key)));
+        } catch (err) {
+          console.warn("CacheStorage clearing error during hard refresh:", err);
+        }
+      }
+
+      // 3. Clear session storage
+      try {
+        sessionStorage.clear();
+      } catch (err) {
+        console.warn("SessionStorage clearing during hard refresh:", err);
+      }
+
+      // 4. Dispatch synthetic Ctrl+Shift+R and Cmd+Shift+R keyboard events
+      try {
+        const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+        const keyboardEventInit: KeyboardEventInit = {
+          key: "R",
+          code: "KeyR",
+          keyCode: 82,
+          which: 82,
+          shiftKey: true,
+          ctrlKey: !isMac,
+          metaKey: isMac,
+          bubbles: true,
+          cancelable: true,
+        };
+        window.dispatchEvent(new KeyboardEvent("keydown", keyboardEventInit));
+        document.dispatchEvent(new KeyboardEvent("keydown", keyboardEventInit));
+      } catch (err) {
+        console.warn("Keyboard event dispatch:", err);
+      }
+    } finally {
+      // 5. Force hard reload bypassing cache using a unique timestamp query
+      const freshUrl = new URL(window.location.href);
+      freshUrl.searchParams.set("_hard_refresh", Date.now().toString());
+      window.location.replace(freshUrl.toString());
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-stone-850 flex flex-col font-sans select-none overflow-hidden" id="admin-hub-system">
       
@@ -1761,6 +1821,24 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-4 mb-1.5">SYSTEM</p>
             <SidebarBtn icon={<Printer />} label="Printers" active={activeTab === "printers"} onClick={() => handleTabSelect("printers")} />
             <SidebarBtn icon={<Settings />} label="Settings" active={activeTab === "settings"} onClick={() => handleTabSelect("settings")} />
+            
+            {/* HARD REFRESH Button - Emulates Ctrl/Cmd + Shift + R */}
+            <button
+              type="button"
+              id="btn-sidebar-hard-refresh"
+              onClick={handleHardRefresh}
+              disabled={isHardRefreshing}
+              title="Apply Hard Refresh (Ctrl/Cmd + Shift + R) - Clears caches & reloads"
+              className="w-full text-xs font-bold uppercase tracking-wider py-2.5 px-3.5 rounded-xl flex items-center justify-between transition-all cursor-pointer select-none border border-amber-200/90 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-300 text-[#aa7c11] hover:text-[#8c6409] focus:outline-none group shadow-2xs mt-1"
+            >
+              <div className="flex items-center gap-2.5">
+                <RefreshCw className={`w-4 h-4 text-[#aa7c11] ${isHardRefreshing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
+                <span className="font-sans">{isHardRefreshing ? "REFRESHING..." : "HARD REFRESH"}</span>
+              </div>
+              <span className="text-[9px] font-mono bg-white text-amber-800 border border-amber-200/80 px-1.5 py-0.5 rounded tracking-tighter shadow-2xs">
+                ⇧⌘R
+              </span>
+            </button>
           </div>
 
           {/* Quick legal credentials */}
@@ -1834,6 +1912,20 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="reports" label="Sales Reports" active={activeTab === "reports"} icon={<TrendingUp />} onClick={() => { handleTabSelect("reports"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="printers" label="Printers" active={activeTab === "printers"} icon={<Printer />} onClick={() => { handleTabSelect("printers"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="settings" label="Settings" active={activeTab === "settings"} icon={<Settings />} onClick={() => { handleTabSelect("settings"); setIsMobileMenuOpen(false); }} />
+                  <button
+                    type="button"
+                    id="btn-mobile-hard-refresh"
+                    onClick={() => {
+                      handleHardRefresh();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    disabled={isHardRefreshing}
+                    title="Hard Refresh (Ctrl/Cmd + Shift + R)"
+                    className="p-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[#aa7c11] hover:bg-amber-100 flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isHardRefreshing ? "animate-spin" : ""}`} />
+                    <span>HARD REFRESH</span>
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -3261,6 +3353,35 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     >
                       <Eye className="w-3.5 h-3.5 text-[#aa7c11]" />
                       <span>View Manual On-Screen</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 8. System Cache & Hard Refresh Control */}
+                <div className="bg-white border border-stone-200 rounded-2xl p-6 space-y-4 shadow-sm text-left">
+                  <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 text-[#aa7c11]" />
+                      <h3 className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider">8. System Diagnostics & Cache Controls</h3>
+                    </div>
+                    <span className="text-[10px] font-mono text-stone-400">Shortcut: Ctrl+Shift+R / ⇧⌘R</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-stone-800">Clear Application Cache & Hard Reload</p>
+                      <p className="text-[11px] text-stone-500 font-sans">
+                        Emulates Ctrl/Cmd + Shift + R to unregister lingering service workers, flush CacheStorage assets, and reload latest code without local cache.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      id="btn-settings-hard-refresh"
+                      onClick={handleHardRefresh}
+                      disabled={isHardRefreshing}
+                      className="px-4 py-2.5 bg-[#aa7c11] hover:bg-[#8c6409] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-xs whitespace-nowrap self-start sm:self-auto"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isHardRefreshing ? "animate-spin" : ""}`} />
+                      <span>{isHardRefreshing ? "REFRESHING..." : "HARD REFRESH"}</span>
                     </button>
                   </div>
                 </div>
