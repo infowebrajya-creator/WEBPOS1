@@ -1,0 +1,12 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+qz-key.pem
+qz-cert.pem
+dist_electron/
+

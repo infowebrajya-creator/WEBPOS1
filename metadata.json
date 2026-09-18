@@ -1,0 +1,8 @@
+{
+  "name": "BASEWB",
+  "description": "THE XINGS KITCHEN POS with specialized takeaway billing, tax calculation, and receipt printing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
