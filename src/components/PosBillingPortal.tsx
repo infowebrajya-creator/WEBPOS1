@@ -11,6 +11,7 @@ import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } f
 import { MenuItem, RestaurantTable, Category, StaffMember, PermissionKey } from "../types";
 import { PhysicalThermalPrinter, getWRPrinterSettings } from "../lib/printerService";
 import { JSPrintManagerService, JSPMStatusInfo } from "../lib/jsprintmanagerService";
+import { PrinterManager } from "../lib/printerManager";
 import { RBACService } from "../lib/rbac";
 import { calculateTax } from "../lib/taxService";
 import TransferTableModal from "./TransferTableModal";
@@ -77,6 +78,8 @@ export default function PosBillingPortal({
     message: string;
     details?: string;
     order: Order;
+    suggestedPrinter?: string;
+    candidatePrinters?: string[];
   } | null>(null);
 
   // Table Transfer Modal State
@@ -90,7 +93,7 @@ export default function PosBillingPortal({
 
   // JSPrintManager Live Connection & Printer Status
   const [jspmStatus, setJspmStatus] = useState<JSPMStatusInfo>(() => JSPrintManagerService.getStatus());
-  const [detectedPrinterName, setDetectedPrinterName] = useState<string>("");
+  const [detectedPrinterName, setDetectedPrinterName] = useState<string>(() => JSPrintManagerService.getStatus().activePrinter || "EPSON TM-T82X Receipt");
   const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Safe inline reconnect handler without navigation or popup
@@ -100,6 +103,9 @@ export default function PosBillingPortal({
       await JSPrintManagerService.init();
       const updated = JSPrintManagerService.getStatus();
       setJspmStatus(updated);
+      if (updated.activePrinter) {
+        setDetectedPrinterName(updated.activePrinter);
+      }
       if (updated.isConnected) {
         setPrintNotice(prev => prev?.type === "warning" ? null : prev);
       }
@@ -116,10 +122,10 @@ export default function PosBillingPortal({
 
     const unsubscribe = JSPrintManagerService.onStatusChange((status) => {
       setJspmStatus(status);
-      if (status.detectedPrinters && status.detectedPrinters.length > 0) {
-        setDetectedPrinterName(status.detectedPrinters[0]);
-      } else if (status.activePrinter) {
+      if (status.activePrinter) {
         setDetectedPrinterName(status.activePrinter);
+      } else if (status.detectedPrinters && status.detectedPrinters.length > 0) {
+        setDetectedPrinterName(status.detectedPrinters[0]);
       }
     });
 
@@ -632,8 +638,18 @@ export default function PosBillingPortal({
         const rawMsg = printErr?.message || "";
         let inlineMsg = "JSPrintManager is not connected. Please start JSPrintManager on the restaurant laptop.";
         let inlineDetails = "Order is saved to database. Use BROWSER PRINT, RECONNECT, or RETRY PRINT to dispatch.";
+        let suggestedPrinter = printErr?.suggestedPrinter;
+        let candidatePrinters = printErr?.candidatePrinters;
 
-        if (rawMsg.includes("certificate") || rawMsg.includes("Certificate")) {
+        if (printErr?.isOffline) {
+          inlineMsg = "Print service unavailable. Order saved successfully.";
+          inlineDetails = "JSPrintManager desktop service is not currently running. Order has been recorded safely.";
+        } else if (rawMsg.includes("is not currently available") || rawMsg.includes("not found")) {
+          inlineMsg = rawMsg;
+          inlineDetails = suggestedPrinter 
+            ? `Detected candidate printer: '${suggestedPrinter}'. Click 'USE DETECTED PRINTER' below to print immediately.`
+            : "Your configured printer is not available. Please verify cable or Windows printer settings.";
+        } else if (rawMsg.includes("certificate") || rawMsg.includes("Certificate")) {
           inlineMsg = "JSPrintManager secure connection requires certificate trust.";
           inlineDetails = "To trust the certificate, open https://localhost:29443 once in a separate window, click Advanced -> Proceed, then return and click RECONNECT.";
         } else if (rawMsg.includes("blocked") || rawMsg.includes("Sites Manager")) {
@@ -650,7 +666,9 @@ export default function PosBillingPortal({
           type: "warning",
           message: inlineMsg,
           details: inlineDetails,
-          order: finalOrder
+          order: finalOrder,
+          suggestedPrinter,
+          candidatePrinters
         });
       }
     } catch (err: any) {
@@ -679,8 +697,18 @@ export default function PosBillingPortal({
       const rawMsg = err?.message || "";
       let inlineMsg = "JSPrintManager is not connected. Please start JSPrintManager on the restaurant laptop.";
       let inlineDetails = "Ensure the JSPrintManager desktop client is running on the restaurant laptop.";
+      let suggestedPrinter = err?.suggestedPrinter;
+      let candidatePrinters = err?.candidatePrinters;
 
-      if (rawMsg.includes("certificate") || rawMsg.includes("Certificate")) {
+      if (err?.isOffline) {
+        inlineMsg = "Print service unavailable. Order saved successfully.";
+        inlineDetails = "JSPrintManager desktop service is not currently running.";
+      } else if (rawMsg.includes("is not currently available") || rawMsg.includes("not found")) {
+        inlineMsg = rawMsg;
+        inlineDetails = suggestedPrinter 
+          ? `Detected candidate printer: '${suggestedPrinter}'. Click 'USE DETECTED PRINTER' below to print immediately.`
+          : "Please check your printer configuration or cable connection.";
+      } else if (rawMsg.includes("certificate") || rawMsg.includes("Certificate")) {
         inlineMsg = "JSPrintManager secure connection requires certificate trust.";
         inlineDetails = "To trust the certificate, open https://localhost:29443 once in a separate window, click Advanced -> Proceed, then return and click RECONNECT.";
       } else if (rawMsg.includes("blocked") || rawMsg.includes("Sites Manager")) {
@@ -694,7 +722,9 @@ export default function PosBillingPortal({
         type: "warning",
         message: inlineMsg,
         details: inlineDetails,
-        order
+        order,
+        suggestedPrinter,
+        candidatePrinters
       });
     }
   };
@@ -891,9 +921,46 @@ export default function PosBillingPortal({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
               {printNotice.type === "warning" && (
                 <>
+                  {printNotice.suggestedPrinter && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = printNotice.suggestedPrinter!;
+                        PrinterManager.saveConfiguredPrinter({
+                          receiptPrinterName: target,
+                          kotPrinterName: target
+                        });
+                        handleRetryPrint(printNotice.order);
+                      }}
+                      className="px-3 py-1.5 bg-[#C67C4E] hover:bg-[#b0673b] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      title={`Switch configuration to '${printNotice.suggestedPrinter}' and retry printing`}
+                    >
+                      <Printer className="w-3 h-3" />
+                      <span>USE {printNotice.suggestedPrinter}</span>
+                    </button>
+                  )}
+                  {printNotice.candidatePrinters && printNotice.candidatePrinters.length > 1 && !printNotice.suggestedPrinter && (
+                    printNotice.candidatePrinters.slice(0, 2).map((cand) => (
+                      <button
+                        key={cand}
+                        type="button"
+                        onClick={() => {
+                          PrinterManager.saveConfiguredPrinter({
+                            receiptPrinterName: cand,
+                            kotPrinterName: cand
+                          });
+                          handleRetryPrint(printNotice.order);
+                        }}
+                        className="px-2.5 py-1.5 bg-[#C67C4E] hover:bg-[#b0673b] text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>Use {cand}</span>
+                      </button>
+                    ))
+                  )}
                   <button
                     type="button"
                     onClick={() => {

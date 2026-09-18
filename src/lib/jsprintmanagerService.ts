@@ -1,10 +1,12 @@
 import * as JSPM from "jsprintmanager";
 import { 
   getWRPrinterSettings, 
+  saveWRPrinterSettings,
   buildBillESCPOS, 
   buildKOTESCPOS, 
   PhysicalThermalPrinter 
 } from "./printerService";
+import { PrinterManager, DiscoveredPrinter } from "./printerManager";
 
 /**
  * Converts ESC/POS hexadecimal command string to a Uint8Array byte buffer
@@ -106,6 +108,104 @@ export class JSPrintManagerService {
   }
 
   /**
+   * Intelligently resolves the target thermal printer against installed system printers.
+   * Handles driver variations like "EPSON TM-T82X" vs "EPSON TM-T82X Receipt",
+   * strips punctuation/whitespace, filters out virtual printers (OneNote, PDF, Fax),
+   * and auto-detects Epson/Receipt thermal printers seamlessly.
+   */
+  public static resolveSystemPrinter(
+    requestedPrinter: string | undefined,
+    systemPrinters: string[]
+  ): { resolvedName: string; autoUpdated: boolean; matchType: string } | null {
+    if (!systemPrinters || systemPrinters.length === 0) {
+      return requestedPrinter ? { resolvedName: requestedPrinter, autoUpdated: false, matchType: "raw_fallback" } : null;
+    }
+
+    const req = (requestedPrinter || "").trim();
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const reqClean = clean(req);
+
+    // 1. Exact case-insensitive match
+    if (req) {
+      const exact = systemPrinters.find(p => p.toLowerCase() === req.toLowerCase());
+      if (exact) {
+        return { resolvedName: exact, autoUpdated: exact !== req, matchType: "exact" };
+      }
+    }
+
+    // 2. Normalized alphanumeric containment (e.g. "EPSON TM-T82X" vs "EPSON TM-T82X Receipt")
+    // "epsontmt82x" is contained in "epsontmt82xreceipt"
+    if (reqClean) {
+      const normMatch = systemPrinters.find(p => {
+        const pClean = clean(p);
+        return pClean.includes(reqClean) || reqClean.includes(pClean);
+      });
+      if (normMatch) {
+        return { resolvedName: normMatch, autoUpdated: true, matchType: "normalized_contains" };
+      }
+    }
+
+    // 3. Substring case-insensitive match
+    if (req) {
+      const subMatch = systemPrinters.find(p => {
+        const pLower = p.toLowerCase();
+        const rLower = req.toLowerCase();
+        return pLower.includes(rLower) || rLower.includes(pLower);
+      });
+      if (subMatch) {
+        return { resolvedName: subMatch, autoUpdated: true, matchType: "substring" };
+      }
+    }
+
+    // Helper: Identify virtual or non-thermal system printers
+    const isVirtualPrinter = (name: string) => {
+      const n = name.toLowerCase();
+      return (
+        n.includes("onenote") ||
+        n.includes("pdf") ||
+        n.includes("xps") ||
+        n.includes("fax") ||
+        n.includes("send to") ||
+        n.includes("document writer")
+      );
+    };
+
+    const physicalPrinters = systemPrinters.filter(p => !isVirtualPrinter(p));
+
+    // 4. Epson TM-T82 / TM-T82X series match (official Windows receipt driver name: "EPSON TM-T82X Receipt")
+    const epsonT82 = physicalPrinters.find(p => {
+      const c = clean(p);
+      return (c.includes("epson") && c.includes("t82")) || c.includes("tmt82") || c.includes("t82x");
+    });
+    if (epsonT82) {
+      return { resolvedName: epsonT82, autoUpdated: true, matchType: "epson_t82_detected" };
+    }
+
+    // 5. Any Epson thermal printer
+    const epsonAny = physicalPrinters.find(p => p.toLowerCase().includes("epson"));
+    if (epsonAny) {
+      return { resolvedName: epsonAny, autoUpdated: true, matchType: "epson_detected" };
+    }
+
+    // 6. Any printer explicitly named Receipt, Thermal, POS, KOT, Bill
+    const receiptPrinter = physicalPrinters.find(p => {
+      const n = p.toLowerCase();
+      return n.includes("receipt") || n.includes("thermal") || n.includes("pos") || n.includes("bill") || n.includes("kot");
+    });
+    if (receiptPrinter) {
+      return { resolvedName: receiptPrinter, autoUpdated: true, matchType: "receipt_detected" };
+    }
+
+    // 7. First physical non-virtual printer fallback
+    if (physicalPrinters.length > 0) {
+      return { resolvedName: physicalPrinters[0], autoUpdated: true, matchType: "physical_first" };
+    }
+
+    // 8. Fallback to requested or first detected
+    return { resolvedName: req || systemPrinters[0], autoUpdated: false, matchType: "fallback" };
+  }
+
+  /**
    * Map JSPrintManager numeric WSStatus to human-readable information
    */
   public static getStatus(): JSPMStatusInfo {
@@ -178,6 +278,14 @@ export class JSPrintManagerService {
       }
 
       const pSettings = getWRPrinterSettings();
+      let activePrinter = pSettings.printerName;
+      if (this.cachedPrinters.length > 0) {
+        const resolved = this.resolveSystemPrinter(activePrinter, this.cachedPrinters);
+        if (resolved?.resolvedName) {
+          activePrinter = resolved.resolvedName;
+        }
+      }
+
       return { 
         code: typeof effectiveCode === "number" ? effectiveCode : 1, 
         label, 
@@ -186,7 +294,7 @@ export class JSPrintManagerService {
         isBlocked,
         hint,
         detectedPrinters: this.cachedPrinters,
-        activePrinter: pSettings.printerName || (this.cachedPrinters[0] || "")
+        activePrinter: activePrinter || (this.cachedPrinters[0] || "")
       };
     } catch {
       return { 
@@ -366,6 +474,12 @@ export class JSPrintManagerService {
         this.cachedPrinters = printers;
         console.log("[JSPrintManager] available printers:", this.cachedPrinters);
         const pSettings = getWRPrinterSettings();
+        const resolved = this.resolveSystemPrinter(pSettings.printerName, this.cachedPrinters);
+        if (resolved && resolved.autoUpdated && resolved.resolvedName && resolved.resolvedName !== pSettings.printerName) {
+          pSettings.printerName = resolved.resolvedName;
+          saveWRPrinterSettings(pSettings);
+          console.log(`[JSPrintManager] Auto-selected detected thermal printer '${resolved.resolvedName}' (saved as default)`);
+        }
         console.log("[JSPrintManager] selected printer:", pSettings.printerName || (this.cachedPrinters[0] || "Default Printer"));
         this.notifyListeners(this.getStatus());
       }
@@ -408,10 +522,10 @@ export class JSPrintManagerService {
       if (!this.isConnected()) {
         return this.cachedPrinters;
       }
-      const printers = await JSPM.JSPrintManager.getPrinters();
-      if (Array.isArray(printers)) {
+      const discovered = await PrinterManager.discoverPrinters(true);
+      const printers = discovered.map(p => p.name);
+      if (Array.isArray(printers) && printers.length > 0) {
         this.cachedPrinters = printers;
-        console.log("[JSPrintManager] available printers:", this.cachedPrinters);
         return printers;
       }
       return this.cachedPrinters;
@@ -435,6 +549,8 @@ export class JSPrintManagerService {
       throw new Error("Printing is only supported in a browser environment.");
     }
 
+    console.log(`[PrinterManager] Print job started: '${docName}'`);
+
     // Step 1: Strict connection check BEFORE dispatching
     if (!this.isConnected()) {
       // Attempt reconnection once if not yet connected
@@ -454,60 +570,56 @@ export class JSPrintManagerService {
         errorMsg = "Approval Required in JSPrintManager client.";
       }
 
-      console.warn("[JSPrintManager Connection Diagnostic]", diag);
-      throw new Error(errorMsg);
+      console.warn("[PrinterManager] Print job failed: service unavailable.", errorMsg, diag);
+      const offlineErr: any = new Error(errorMsg);
+      offlineErr.isOffline = true;
+      throw offlineErr;
     }
 
-    // Step 2: Printer Discovery / Configuration check ONLY AFTER OPEN
-    const pSettings = getWRPrinterSettings();
-    const printerName = targetPrinter?.trim() || pSettings.printerName?.trim();
+    // Step 2: Printer Discovery / Configuration check using centralized PrinterManager
+    const resolution = await PrinterManager.resolvePrinter("receipt", targetPrinter);
 
-    // Check if system printers are cached, otherwise query them
-    if (this.cachedPrinters.length === 0) {
-      try {
-        console.log("[JSPrintManager] printer discovery: querying system printers...");
-        const discovered = await JSPM.JSPrintManager.getPrinters();
-        if (Array.isArray(discovered)) {
-          this.cachedPrinters = discovered;
-          console.log("[JSPrintManager] available printers:", this.cachedPrinters);
-        }
-      } catch (err) {
-        console.warn("[JSPrintManager] printer discovery error during print:", err);
+    if (resolution.status === "service_offline") {
+      const offlineErr: any = new Error("JSPrintManager desktop service is not running on this computer.");
+      offlineErr.isOffline = true;
+      throw offlineErr;
+    }
+
+    const effectivePrinterName = resolution.resolvedPrinter;
+
+    if (!effectivePrinterName) {
+      const pConfig = PrinterManager.getConfiguredPrinter();
+      const configuredName = targetPrinter || pConfig.receiptPrinterName;
+      let detailedMsg = `Your configured printer '${configuredName}' is not currently available.`;
+      if (resolution.candidatePrinters && resolution.candidatePrinters.length > 0) {
+        detailedMsg += ` Detected printer: ${resolution.candidatePrinters.join(", ")}`;
       }
+
+      console.warn(`[PrinterManager] Print job failed: ${detailedMsg}`);
+      const err: any = new Error(detailedMsg);
+      err.configuredPrinter = configuredName;
+      err.candidatePrinters = resolution.candidatePrinters;
+      err.suggestedPrinter = resolution.candidatePrinters[0];
+      throw err;
     }
 
-    const systemPrinters = this.cachedPrinters;
-    console.log("[JSPrintManager] selected printer:", printerName || (systemPrinters[0] || "Default Printer"));
-
-    if (systemPrinters.length > 0 && printerName) {
-      const found = systemPrinters.some(
-        p => p.toLowerCase() === printerName.toLowerCase()
-      );
-      if (!found) {
-        // Directive 8: If WebSocket is OPEN but configured printer is missing, do NOT say disconnected!
-        const missingMsg = `JSPrintManager connected, but the configured thermal printer '${printerName}' was not found. Detected printers: [${systemPrinters.join(", ")}].`;
-        console.warn(`[JSPrintManager] ${missingMsg}`);
-        throw new Error(missingMsg);
-      }
-    }
+    console.log(`[PrinterManager] Selected printer: '${effectivePrinterName}' (match: ${resolution.matchType || "direct"})`);
 
     // Step 3: Create ClientPrintJob and send ESC/POS
     const cpj = new JSPM.ClientPrintJob();
-    if (printerName) {
-      cpj.clientPrinter = new JSPM.InstalledPrinter(printerName, true);
-    } else {
-      cpj.clientPrinter = new JSPM.DefaultPrinter();
-    }
-
+    cpj.clientPrinter = new JSPM.InstalledPrinter(effectivePrinterName, true);
     cpj.binaryPrinterCommands = bytes;
     cpj.printerCommandsCopies = Math.max(1, copies);
     cpj.printerCommandsDocName = docName;
 
-    await cpj.sendToClient();
-
-    const used = printerName || "Default Thermal Printer";
-    console.log(`[JSPrintManager] Successfully sent print job '${docName}' to ${used}`);
-    return { success: true, printerUsed: used };
+    try {
+      await cpj.sendToClient();
+      console.log(`[PrinterManager] Print job completed: '${docName}' on '${effectivePrinterName}'`);
+      return { success: true, printerUsed: effectivePrinterName };
+    } catch (sendErr: any) {
+      console.warn(`[PrinterManager] Print job failed on '${effectivePrinterName}':`, sendErr);
+      throw new Error(`Failed to spool '${docName}' to printer '${effectivePrinterName}': ${sendErr?.message || sendErr}`);
+    }
   }
 
   /**

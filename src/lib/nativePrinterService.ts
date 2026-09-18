@@ -39,7 +39,7 @@ export class NativePrinterService {
    * Print raw ESC/POS hex payload directly to thermal printer via JSPrintManager
    */
   public static async printRawHex(
-    printerName: string = "EPSON TM-T82X",
+    printerName: string = "EPSON TM-T82X Receipt",
     hexString: string,
     copies: number = 1
   ): Promise<{ success: boolean; printerUsed: string }> {

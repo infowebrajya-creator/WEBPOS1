@@ -166,6 +166,11 @@ export class ESCPOSBuilder {
     return new Uint8Array(this.buffer);
   }
 
+  // Alias for compileBytes
+  public compile(): Uint8Array {
+    return this.compileBytes();
+  }
+
   // Clear builder state
   public clear(): void {
     this.buffer = [];

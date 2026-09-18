@@ -2,6 +2,9 @@ import { MenuItem, Shift, ShiftFinancials } from "../types";
 import { ESCPOSBuilder } from "./escposBuilder";
 import { NativePrinterService } from "./nativePrinterService";
 import { RestaurantSettings, defaultOutlets, defaultTermsAndConditions } from "./db";
+import { PrinterManager } from "./printerManager";
+
+export { PrinterManager };
 
 export interface PrinterItem {
   name: string;
@@ -1861,28 +1864,23 @@ export interface WRPrinterSettings {
 }
 
 export function getWRPrinterSettings(): WRPrinterSettings {
-  const stored = localStorage.getItem("wr_printer_settings");
-  if (!stored) {
-    const defaults: WRPrinterSettings = {
-      printerName: "EPSON TM-T82X",
-      paperWidth: "80mm",
-      autoPrintBill: true,
-      autoPrintKOT: true,
-      autoCut: true,
-      cutType: "full",
-      feedBeforeCutBill: 5,
-      feedBeforeCutKOT: 3,
-      copies: 1,
-      useQZTray: true,
-    };
-    localStorage.setItem("wr_printer_settings", JSON.stringify(defaults));
-    return defaults;
-  }
   try {
-    return JSON.parse(stored);
+    const config = PrinterManager.getConfiguredPrinter();
+    return {
+      printerName: config.receiptPrinterName || "EPSON TM-T82X Receipt",
+      paperWidth: config.paperWidth,
+      autoPrintBill: config.autoPrintBill,
+      autoPrintKOT: config.autoPrintKOT,
+      autoCut: config.autoCut,
+      cutType: config.cutType,
+      feedBeforeCutBill: config.feedBeforeCutBill,
+      feedBeforeCutKOT: config.feedBeforeCutKOT,
+      copies: config.copies,
+      useQZTray: false,
+    };
   } catch (e) {
-    const defaults: WRPrinterSettings = {
-      printerName: "EPSON TM-T82X",
+    return {
+      printerName: "EPSON TM-T82X Receipt",
       paperWidth: "80mm",
       autoPrintBill: true,
       autoPrintKOT: true,
@@ -1891,14 +1889,27 @@ export function getWRPrinterSettings(): WRPrinterSettings {
       feedBeforeCutBill: 5,
       feedBeforeCutKOT: 3,
       copies: 1,
-      useQZTray: true,
+      useQZTray: false,
     };
-    return defaults;
   }
 }
 
 export function saveWRPrinterSettings(settings: WRPrinterSettings) {
-  localStorage.setItem("wr_printer_settings", JSON.stringify(settings));
+  try {
+    PrinterManager.saveConfiguredPrinter({
+      receiptPrinterName: settings.printerName,
+      paperWidth: settings.paperWidth,
+      autoPrintBill: settings.autoPrintBill,
+      autoPrintKOT: settings.autoPrintKOT,
+      autoCut: settings.autoCut,
+      cutType: settings.cutType,
+      feedBeforeCutBill: settings.feedBeforeCutBill,
+      feedBeforeCutKOT: settings.feedBeforeCutKOT,
+      copies: settings.copies
+    });
+  } catch (e) {
+    localStorage.setItem("wr_printer_settings", JSON.stringify(settings));
+  }
 }
 
 // Helper to split an item name into words wrapped to a max column width without breaking words
