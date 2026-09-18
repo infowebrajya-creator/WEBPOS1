@@ -20,19 +20,19 @@ export interface TaxCalculationResult extends TaxSettings {
 export function getTaxSettings(settings: Partial<RestaurantSettings> | null | undefined): TaxSettings {
   if (!settings) {
     return {
-      gstEnabled: true,
+      gstEnabled: false,
       gstin: "",
-      gstRate: 5,
-      cgstRate: 2.5,
-      sgstRate: 2.5,
+      gstRate: 0,
+      cgstRate: 0,
+      sgstRate: 0,
     };
   }
 
-  // GST is enabled by default unless explicitly turned off via gstEnabled === false
-  const gstEnabled = settings.gstEnabled !== false;
-  const gstRate = typeof settings.gstRate === "number" ? settings.gstRate : (typeof settings.gstPercentage === "number" ? settings.gstPercentage : 5);
-  const cgstRate = typeof settings.cgstRate === "number" ? settings.cgstRate : gstRate / 2;
-  const sgstRate = typeof settings.sgstRate === "number" ? settings.sgstRate : gstRate / 2;
+  // GST is disabled by default unless explicitly enabled with a positive rate
+  const gstEnabled = settings.gstEnabled === true && (Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0);
+  const gstRate = gstEnabled ? (typeof settings.gstRate === "number" ? settings.gstRate : (typeof settings.gstPercentage === "number" ? settings.gstPercentage : 0)) : 0;
+  const cgstRate = gstEnabled ? (typeof settings.cgstRate === "number" ? settings.cgstRate : gstRate / 2) : 0;
+  const sgstRate = gstEnabled ? (typeof settings.sgstRate === "number" ? settings.sgstRate : gstRate / 2) : 0;
   const gstin = settings.gstin || "";
 
   return {

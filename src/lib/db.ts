@@ -278,12 +278,12 @@ const defaultSettings: RestaurantSettings = {
   address: "",
   businessHours: "Mon-Sun: 10:00 AM - 10:00 PM",
   deliveryCharges: 0,
-  gstEnabled: true,
-  gstRate: 5,
-  cgstRate: 2.5,
-  sgstRate: 2.5,
-  gstPercentage: 5,
-  invoiceTitle: "TAX INVOICE",
+  gstEnabled: false,
+  gstRate: 0,
+  cgstRate: 0,
+  sgstRate: 0,
+  gstPercentage: 0,
+  invoiceTitle: "RETAIL INVOICE",
   cashierName: "Cashier",
   defaultPax: 2,
   paperWidth: "80mm",
@@ -406,11 +406,20 @@ export class LocalDB {
     try {
       const parsed = JSON.parse(stored);
       if (!Array.isArray(parsed)) return [];
+      const settings = this.getSettings();
       const seen = new Set<string>();
       const unique: Order[] = [];
       for (const item of parsed) {
         if (item && item.id && !seen.has(item.id)) {
           seen.add(item.id);
+          // If GST is disabled or not charged, sanitize order totals so GST is 0
+          if (!settings.gstEnabled || Number(settings.gstRate || 0) === 0) {
+            item.gst = 0;
+            const sub = Number(item.subtotal || 0);
+            const pkg = Number(item.packagingCharge || 0);
+            const disc = Number(item.discountAmount || 0);
+            item.grandTotal = Math.max(0, sub + pkg - disc);
+          }
           unique.push(item);
         }
       }
@@ -499,7 +508,8 @@ export class LocalDB {
 
           const combinedItems = [...existingItemsWithTracking, ...newlyAddedItemsWithTracking];
           const subtotal = combinedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-          const gst = Math.round(subtotal * 0.05);
+          const settings = this.getSettings();
+          const gst = settings.gstEnabled && Number(settings.gstRate || 0) > 0 ? Math.round(subtotal * (settings.gstRate / 100)) : 0;
           const packagingCharge = 0;
           
           let discountAmount = activeOrder.discountAmount || 0;
@@ -726,9 +736,16 @@ export class LocalDB {
         localStorage.setItem("ij_settings", JSON.stringify(defaultSettings));
         return defaultSettings;
       }
+      // Respect restaurant preference: GST is disabled unless explicitly set and rate > 0
+      const gstEnabled = parsed.gstEnabled === true && Number(parsed.gstRate ?? parsed.gstPercentage ?? 0) > 0;
       const merged: RestaurantSettings = {
         ...defaultSettings,
         ...parsed,
+        gstEnabled,
+        gstRate: gstEnabled ? Number(parsed.gstRate ?? parsed.gstPercentage ?? 0) : 0,
+        cgstRate: gstEnabled ? Number(parsed.cgstRate ?? 0) : 0,
+        sgstRate: gstEnabled ? Number(parsed.sgstRate ?? 0) : 0,
+        gstPercentage: gstEnabled ? Number(parsed.gstPercentage ?? parsed.gstRate ?? 0) : 0,
         outlets: parsed.outlets && parsed.outlets.length > 0 ? parsed.outlets : defaultOutlets,
         termsAndConditions: parsed.termsAndConditions && parsed.termsAndConditions.length > 0 ? parsed.termsAndConditions : defaultTermsAndConditions
       };
@@ -808,7 +825,8 @@ export class LocalDB {
   static async apiSyncOrderTimelineAndItems(orderId: string, items: any[], timeline: any[], addOnCount?: number): Promise<void> {
     try {
       const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const gst = Math.round(subtotal * 0.05);
+      const settings = this.getSettings();
+      const gst = settings.gstEnabled && Number(settings.gstRate || 0) > 0 ? Math.round(subtotal * (settings.gstRate / 100)) : 0;
       const grand_total = subtotal + gst;
       
       const updatePayload: any = {
@@ -903,14 +921,17 @@ export class LocalDB {
           ? parsedItems[0].addedBy
           : (item.order_type === "dine-in" ? "Table QR" : undefined);
 
+        const settings = this.getSettings();
         const isTakeaway = (item.order_type || "").toLowerCase() === "takeaway";
         const subtotal = Number(item.subtotal || 0);
-        const gst = Number(item.gst || 0);
         const discountAmount = Number(item.discount_amount || 0);
         const packagingCharge = isTakeaway ? 0 : Number(item.packaging_charge || 0);
-        const grandTotal = isTakeaway
-          ? Math.max(0, Math.round(subtotal - discountAmount + gst))
-          : Number(item.grand_total || 0);
+        const gst = settings.gstEnabled && Number(settings.gstRate || 0) > 0 ? Number(item.gst || 0) : 0;
+        const grandTotal = (!settings.gstEnabled || Number(settings.gstRate || 0) === 0)
+          ? Math.max(0, Math.round(subtotal - discountAmount + packagingCharge))
+          : (isTakeaway
+            ? Math.max(0, Math.round(subtotal - discountAmount + gst))
+            : Number(item.grand_total || 0));
 
         mapped.push({
           id: item.id,
@@ -1206,7 +1227,9 @@ export class LocalDB {
     // 2. RECALCULATE TAXES, DISCOUNTS & GRAND TOTAL
     const subtotal = mergedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const settings = this.getSettings();
-    const gstRate = (settings.gstPercentage ?? 5) / 100;
+    const gstRate = settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0
+      ? (Number(settings.gstRate ?? settings.gstPercentage ?? 0)) / 100
+      : 0;
     const gst = Math.round(subtotal * gstRate);
     const packagingCharge = 0; // Dine-in orders have 0 packaging charge
 
@@ -1387,7 +1410,8 @@ export class LocalDB {
 
     const combinedItems = [...existingItemsWithTracking, ...newlyAddedItemsWithTracking];
     const subtotal = combinedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const gst = Math.round(subtotal * 0.05);
+    const settings = this.getSettings();
+    const gst = settings.gstEnabled && Number(settings.gstRate || 0) > 0 ? Math.round(subtotal * (settings.gstRate / 100)) : 0;
     const packagingCharge = 0;
     
     let discountAmount = existingOrder.discountAmount || 0;
@@ -2622,11 +2646,11 @@ export class LocalDB {
         address: item.address || "",
         businessHours: item.business_hours || "Mon-Sun: 10:00 AM - 10:00 PM",
         deliveryCharges: Number(item.delivery_charges || 0),
-        gstEnabled: item.gst_enabled !== false,
-        gstRate: Number(item.gst_rate ?? item.gst_percentage ?? 5),
-        cgstRate: Number(item.cgst_rate ?? (Number(item.gst_rate ?? item.gst_percentage ?? 5) / 2)),
-        sgstRate: Number(item.sgst_rate ?? (Number(item.gst_rate ?? item.gst_percentage ?? 5) / 2)),
-        gstPercentage: Number(item.gst_percentage ?? item.gst_rate ?? 5),
+        gstEnabled: item.gst_enabled === true && (Number(item.gst_rate ?? item.gst_percentage ?? 0) > 0),
+        gstRate: Number(item.gst_rate ?? item.gst_percentage ?? 0),
+        cgstRate: Number(item.cgst_rate ?? (Number(item.gst_rate ?? item.gst_percentage ?? 0) / 2)),
+        sgstRate: Number(item.sgst_rate ?? (Number(item.gst_rate ?? item.gst_percentage ?? 0) / 2)),
+        gstPercentage: Number(item.gst_percentage ?? item.gst_rate ?? 0),
         gstin: item.gstin || "",
         facebookUrl: item.facebook_url || "",
         instagramUrl: item.instagram_url || "",
@@ -2642,6 +2666,7 @@ export class LocalDB {
   }
 
   static async apiSaveSettings(settings: RestaurantSettings): Promise<void> {
+    const isGstActive = settings.gstEnabled === true && (Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0);
     const payload = {
       id: "singleton-config", // Keep simple single row config
       name: settings.name,
@@ -2649,11 +2674,11 @@ export class LocalDB {
       address: settings.address,
       business_hours: settings.businessHours,
       delivery_charges: Number(settings.deliveryCharges || 0),
-      gst_enabled: settings.gstEnabled !== false,
-      gst_rate: Number(settings.gstRate ?? settings.gstPercentage ?? 5),
-      cgst_rate: Number(settings.cgstRate ?? 2.5),
-      sgst_rate: Number(settings.sgstRate ?? 2.5),
-      gst_percentage: Number(settings.gstPercentage ?? settings.gstRate ?? 5),
+      gst_enabled: isGstActive,
+      gst_rate: isGstActive ? Number(settings.gstRate ?? settings.gstPercentage ?? 0) : 0,
+      cgst_rate: isGstActive ? Number(settings.cgstRate ?? 0) : 0,
+      sgst_rate: isGstActive ? Number(settings.sgstRate ?? 0) : 0,
+      gst_percentage: isGstActive ? Number(settings.gstPercentage ?? settings.gstRate ?? 0) : 0,
       gstin: settings.gstin || "",
       facebook_url: settings.facebookUrl,
       instagram_url: settings.instagramUrl,

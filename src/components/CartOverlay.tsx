@@ -140,7 +140,8 @@ export default function CartOverlay({
     (sum, item) => sum + item.menuItem.price * item.quantity,
     0,
   );
-  const gst = Math.round(subtotal * 0.05); // 5% GST
+  const settings = LocalDB.getSettings();
+  const gst = settings.gstEnabled && Number(settings.gstRate || 0) > 0 ? Math.round(subtotal * (settings.gstRate / 100)) : 0;
   const packagingCharge = orderType === "dine-in" || orderType === "takeaway" ? 0 : 25; // Delivery packaging only; takeaway has 0 packaging
   const grandTotal = subtotal + gst + packagingCharge;
 
@@ -265,197 +266,7 @@ export default function CartOverlay({
         )}
       </AnimatePresence>
 
-      {/* Sticky Floating Profile / My Orders Trigger (Desktop Only) */}
-      <AnimatePresence>
-        {!isProfileOpen && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsProfileOpen(true)}
-            className="fixed bottom-6 left-6 z-50 bg-white/95 backdrop-blur-md hover:bg-stone-50 text-stone-850 border border-stone-200 px-5 py-4 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hidden md:flex items-center gap-3 cursor-pointer group transition-all"
-            id="floating-profile-btn"
-          >
-            <div className="w-8 h-8 rounded-full bg-amber-50 border border-[#d4af37]/35 flex items-center justify-center text-[#aa7c11] group-hover:bg-[#d4af37] group-hover:text-white transition-all">
-              <User className="w-4 h-4" />
-            </div>
-            <div className="flex flex-col items-start leading-tight">
-              <span className="text-[10px] text-stone-400 font-mono tracking-wider font-bold uppercase leading-none">
-                GUEST PROFILE
-              </span>
-              <span className="text-xs font-bold text-stone-800 font-sans mt-0.5">
-                {pastOrders[0]?.customerName ? pastOrders[0].customerName : "My Recent Orders"}
-              </span>
-            </div>
-          </motion.button>
-        )}
-      </AnimatePresence>
 
-      {/* Profile & Recent Orders Drawer (Desktop) */}
-      <AnimatePresence>
-        {isProfileOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsProfileOpen(false)}
-              className="fixed inset-0 bg-black z-50 backdrop-blur-xs"
-            />
-
-            {/* Left Slide-out Container */}
-            <motion.div
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 h-full w-full sm:max-w-md bg-[#FAF9F5] border-r border-stone-200 z-50 shadow-2xl flex flex-col font-sans"
-              id="desktop-profile-drawer"
-            >
-              {/* Header */}
-              <div className="p-5 border-b border-stone-200 bg-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-[#d4af37]/30 flex items-center justify-center text-[#aa7c11]">
-                    <User className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider font-sans">
-                      My Guest Profile
-                    </h2>
-                    <p className="text-[10px] text-stone-400 font-mono leading-none mt-0.5">
-                      SAVED ON THIS DEVICE
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsProfileOpen(false)}
-                  className="w-8 h-8 rounded-full bg-stone-50 text-stone-500 hover:text-stone-950 border border-stone-200 flex items-center justify-center hover:bg-stone-100 transition-all cursor-pointer focus:outline-none"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Profile Card / Content */}
-              <div className="flex-grow overflow-y-auto p-5 space-y-6">
-                {/* Guest Profile Welcome */}
-                <div className="bg-gradient-to-br from-stone-900 to-stone-800 text-white rounded-3xl p-5 relative overflow-hidden shadow-md">
-                  <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-[#d4af37]/10 rounded-full blur-xl pointer-events-none" />
-                  
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#d4af37] to-[#aa7c11] flex items-center justify-center shadow-md font-serif text-lg font-bold text-stone-900 uppercase">
-                      {(pastOrders[0]?.customerName || "G").charAt(0)}
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-mono tracking-widest text-[#d4af37] uppercase font-bold">Welcome Back</span>
-                      <h3 className="text-sm font-bold font-serif tracking-wide text-white">
-                        {pastOrders[0]?.customerName || "Guest Gourmand"}
-                      </h3>
-                      <p className="text-[10px] text-stone-300 font-mono mt-0.5">
-                        {pastOrders[0]?.phoneNumber || "No active phone session"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-[9px] font-mono text-stone-400 block uppercase">Total Orders</span>
-                      <span className="text-xs font-mono font-bold text-white">
-                        {pastOrders.length} {pastOrders.length === 1 ? "Order" : "Orders"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-mono text-stone-400 block uppercase">Last Dining Type</span>
-                      <span className="text-[10px] font-semibold text-[#d4af37] block mt-0.5 uppercase">
-                        {pastOrders[0]?.orderType === "dine-in" ? `Dine-In (Table #${pastOrders[0].tableNumber})` : pastOrders[0]?.orderType || "N/A"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Recent Orders List */}
-                <div className="space-y-4">
-                  <h3 className="text-[11px] font-mono font-bold text-stone-400 uppercase tracking-widest">
-                    Order History ({pastOrders.length})
-                  </h3>
-
-                  {pastOrders.length === 0 ? (
-                    <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center space-y-3 shadow-xs">
-                      <div className="w-12 h-12 rounded-full bg-stone-50 border border-stone-150 flex items-center justify-center text-stone-300 mx-auto">
-                        <Clock className="w-6 h-6 text-stone-400" />
-                      </div>
-                      <h4 className="text-xs font-bold text-stone-900 font-sans">No order history found</h4>
-                      <p className="text-xs text-stone-500 font-light max-w-xs mx-auto leading-relaxed">
-                        Your past orders will appear here automatically so you can track kitchen status and reorder with a single click.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {pastOrders.slice(0, 5).map((order) => {
-                        const formattedDate = new Date(order.createdAt).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        });
-
-                        const statusColor = 
-                          order.orderStatus === "Completed" || order.orderStatus === "Served" || order.orderStatus === "Delivered" ? "bg-green-50 text-green-700 border-green-200" :
-                          order.orderStatus === "Cancelled" ? "bg-red-50 text-red-600 border-red-200" :
-                          "bg-amber-50 text-amber-700 border-amber-200";
-
-                        return (
-                          <div key={order.id} className="bg-white border border-stone-200 p-4 rounded-2xl space-y-3 shadow-xs hover:border-stone-300 transition-all">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="text-[11px] font-mono font-bold text-stone-900">{order.id}</span>
-                                <span className="text-[10px] text-stone-404 font-mono ml-2">({formattedDate})</span>
-                              </div>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
-                                {order.orderStatus}
-                              </span>
-                            </div>
-
-                            <div className="text-xs text-stone-600 space-y-1.5">
-                              {order.items.map((item: any, i: number) => (
-                                <div key={i} className="flex justify-between text-xs">
-                                  <span>
-                                    <strong className="text-stone-900 font-semibold">{item.quantity}x</strong> {item.name}
-                                  </span>
-                                  <span className="font-mono text-stone-500">₹{item.price * item.quantity}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="pt-2.5 border-t border-stone-100 flex items-center justify-between">
-                              <div>
-                                <span className="text-[9px] font-mono text-stone-400 block uppercase">
-                                  {order.orderType === "dine-in" ? `DINE-IN (Table #${order.tableNumber})` : order.orderType.toUpperCase()}
-                                </span>
-                                <span className="text-xs font-mono font-black text-stone-900">
-                                  Total: ₹{order.grandTotal}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => handleReorder(order)}
-                                className="bg-stone-900 hover:bg-[#aa7c11] text-white font-bold text-[10px] uppercase tracking-wider px-3.5 py-1.5 rounded-lg shadow-sm cursor-pointer transition-all flex items-center gap-1"
-                              >
-                                Reorder
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* Slide-out Drawer */}
       <AnimatePresence>
@@ -856,14 +667,18 @@ export default function CartOverlay({
                         <span>Plate Subtotal</span>
                         <span className="font-mono">₹{subtotal}</span>
                       </div>
-                      <div className="flex justify-between text-stone-500 font-light">
-                        <span>CGST (2.5%)</span>
-                        <span className="font-mono">₹{(gst / 2).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-stone-500 font-light">
-                        <span>SGST (2.5%)</span>
-                        <span className="font-mono">₹{(gst / 2).toFixed(2)}</span>
-                      </div>
+                      {settings.gstEnabled && gst > 0 && (
+                        <>
+                          <div className="flex justify-between text-stone-500 font-light">
+                            <span>CGST ({((settings.cgstRate ?? 2.5)).toFixed(1)}%)</span>
+                            <span className="font-mono">₹{(gst / 2).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-stone-500 font-light">
+                            <span>SGST ({((settings.sgstRate ?? 2.5)).toFixed(1)}%)</span>
+                            <span className="font-mono">₹{(gst / 2).toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
                       {packagingCharge > 0 && (
                         <div className="flex justify-between text-stone-500 font-light">
                           <span>Packaging & Convenience</span>

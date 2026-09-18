@@ -278,7 +278,7 @@ export class PhysicalThermalPrinter {
     const calculatedSubtotal = items.reduce((sum: number, it: any) => sum + (Number(it.price ?? it.unitPrice ?? 0) * (Number(it.quantity) || 1)), 0);
     const subtotalVal = Number(data.subtotal ?? calculatedSubtotal);
     const discountVal = Number(data.discountAmount ?? data.discount ?? 0);
-    const gstVal = Number(data.gst ?? data.totalGst ?? (data.subtotal ? Math.round((subtotalVal - discountVal) * 0.05) : 0));
+    const gstVal = Number(data.gst ?? data.totalGst ?? 0);
     const packagingVal = isTakeaway ? 0 : Number(data.packagingCharge || 0);
     const grandTotalVal = isTakeaway
       ? Math.max(0, Math.round(subtotalVal - discountVal + gstVal))
@@ -618,7 +618,7 @@ export class PhysicalThermalPrinter {
     const totalItemsCount = items.length;
 
     const createdAtDate = new Date(data.createdAt || Date.now());
-    const gstinVal = settings.gstin || "27AABCL1234F1Z5";
+    const gstinVal = settings.gstEnabled ? (settings.gstin || "") : "";
     const fssaiVal = settings.fssaiNumber || "11520056000020";
     const contactVal = settings.contactNumber || "+91 7020796007";
     const addressVal = settings.address || "B-10, Central MIDC Road, Hingna Industrial Area, Nagpur, Maharashtra, India";
@@ -2063,7 +2063,7 @@ export function buildBillESCPOS(data: any, settings: any, printerSettings: WRPri
   const calculatedSubtotal = items.reduce((sum: number, it: any) => sum + (Number(it.price ?? it.unitPrice ?? 0) * (Number(it.quantity) || 1)), 0);
   const subtotalVal = Number(data.subtotal ?? calculatedSubtotal);
   const discountVal = Number(data.discountAmount ?? data.discount ?? 0);
-  const gstVal = Number(data.gst ?? data.totalGst ?? (data.subtotal ? Math.round((subtotalVal - discountVal) * 0.05) : 0));
+  const gstVal = Number(data.gst ?? data.totalGst ?? 0);
   const packagingVal = isTakeaway ? 0 : Number(data.packagingCharge || 0);
   const grandTotalVal = isTakeaway
     ? Math.max(0, Math.round(subtotalVal - discountVal + gstVal))
@@ -2341,13 +2341,15 @@ export function buildZReportESCPOS(
   const width = printerSettings.paperWidth || "80mm";
   const restName = settings?.name || "WEBRAJYA POS RESTAURANT";
   const restAddress = settings?.address || "MG Road, Bengaluru";
-  const gstNumber = settings?.gstNumber || "29AAAAA0000A1Z5";
+  const gstNumber = settings?.gstEnabled ? (settings?.gstNumber || settings?.gstin || "") : "";
 
   builder.alignCenter().bold(true).doubleSize(true);
   builder.writeText(`${restName.toUpperCase()}\n`);
   builder.doubleSize(false).bold(false);
   builder.writeText(`${restAddress}\n`);
-  builder.writeText(`GSTIN: ${gstNumber}\n`);
+  if (gstNumber) {
+    builder.writeText(`GSTIN: ${gstNumber}\n`);
+  }
   builder.divider(width, true);
 
   // Header Title

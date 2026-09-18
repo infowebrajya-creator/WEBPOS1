@@ -300,7 +300,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       const makeOrder = (itemCount: number, customIdSuffix: string): Order => {
         const items = orderItems(itemCount);
         const subtotal = items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
-        const gst = Math.round(subtotal * 0.05); // 5% GST
+        const gst = (settings.gstEnabled && Number(settings.gstRate || 0) > 0) ? Math.round(subtotal * (Number(settings.gstRate) / 100)) : 0;
         const packagingCharge = itemCount > 10 ? 30 : 15;
         const discountAmount = itemCount > 25 ? 50 : 0;
         const grandTotal = subtotal + gst + packagingCharge - discountAmount;
@@ -2800,12 +2800,35 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <span className="text-[10px] font-mono font-bold uppercase text-stone-500">GST Status:</span>
                       <button
                         type="button"
-                        onClick={() => setSettings({ ...settings, gstEnabled: !(settings.gstEnabled !== false) })}
+                        onClick={() => {
+                          const isCurrentlyActive = Boolean(settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0);
+                          if (isCurrentlyActive) {
+                            setSettings({
+                              ...settings,
+                              gstEnabled: false,
+                              gstRate: 0,
+                              gstPercentage: 0,
+                              cgstRate: 0,
+                              sgstRate: 0
+                            });
+                          } else {
+                            setSettings({
+                              ...settings,
+                              gstEnabled: true,
+                              gstRate: 5,
+                              gstPercentage: 5,
+                              cgstRate: 2.5,
+                              sgstRate: 2.5
+                            });
+                          }
+                        }}
                         className={`px-3.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all cursor-pointer ${
-                          settings.gstEnabled !== false ? "bg-emerald-600 text-white shadow-xs" : "bg-stone-200 text-stone-700"
+                          Boolean(settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0)
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-stone-200 text-stone-700"
                         }`}
                       >
-                        {settings.gstEnabled !== false ? "GST ON" : "GST OFF"}
+                        {Boolean(settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0) ? "GST ON" : "GST OFF"}
                       </button>
                     </div>
                   </div>
@@ -2815,7 +2838,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <label className="text-[10px] font-sans font-bold text-stone-500 uppercase tracking-widest block">GSTIN Number</label>
                       <input
                         type="text"
-                        disabled={settings.gstEnabled === false}
+                        disabled={!Boolean(settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0)}
                         value={settings.gstin || ""}
                         onChange={(e) => setSettings({ ...settings, gstin: e.target.value })}
                         className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] text-stone-900 font-mono uppercase disabled:opacity-40"
@@ -2827,13 +2850,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <label className="text-[10px] font-sans font-bold text-stone-500 uppercase tracking-widest block">GST Rate (%)</label>
                       <input
                         type="number"
-                        disabled={settings.gstEnabled === false}
-                        value={settings.gstRate ?? settings.gstPercentage ?? 5}
+                        disabled={!Boolean(settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0)}
+                        value={settings.gstRate ?? settings.gstPercentage ?? 0}
                         onChange={(e) => {
                           const newRate = Number(e.target.value) || 0;
                           const half = Math.round((newRate / 2) * 100) / 100;
                           setSettings({
                             ...settings,
+                            gstEnabled: newRate > 0,
                             gstRate: newRate,
                             gstPercentage: newRate,
                             cgstRate: half,
@@ -2841,7 +2865,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           });
                         }}
                         className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] text-stone-900 font-mono disabled:opacity-40"
-                        placeholder="5"
+                        placeholder="0"
                       />
                     </div>
 
@@ -2850,11 +2874,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <input
                         type="number"
                         step="0.1"
-                        disabled={settings.gstEnabled === false}
-                        value={settings.cgstRate ?? ((settings.gstRate ?? settings.gstPercentage ?? 5) / 2)}
+                        disabled={!Boolean(settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0)}
+                        value={settings.cgstRate ?? 0}
                         onChange={(e) => setSettings({ ...settings, cgstRate: Number(e.target.value) })}
                         className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] text-stone-900 font-mono disabled:opacity-40"
-                        placeholder="2.5"
+                        placeholder="0"
                       />
                     </div>
 
@@ -2863,11 +2887,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <input
                         type="number"
                         step="0.1"
-                        disabled={settings.gstEnabled === false}
-                        value={settings.sgstRate ?? ((settings.gstRate ?? settings.gstPercentage ?? 5) / 2)}
+                        disabled={!Boolean(settings.gstEnabled && Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0)}
+                        value={settings.sgstRate ?? 0}
                         onChange={(e) => setSettings({ ...settings, sgstRate: Number(e.target.value) })}
                         className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] text-stone-900 font-mono disabled:opacity-40"
-                        placeholder="2.5"
+                        placeholder="0"
                       />
                     </div>
                   </div>
@@ -3859,14 +3883,18 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     <span>Subtotal Basket</span>
                     <span className="font-semibold text-stone-800 font-mono">₹{selectedOrderDetails.subtotal}</span>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span>CGST (2.5%)</span>
-                    <span className="font-semibold text-stone-800 font-mono">₹{(selectedOrderDetails.gst / 2).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span>SGST (2.5%)</span>
-                    <span className="font-semibold text-stone-800 font-mono">₹{(selectedOrderDetails.gst / 2).toFixed(2)}</span>
-                  </div>
+                  {settings.gstEnabled && selectedOrderDetails.gst > 0 && (
+                    <>
+                      <div className="flex justify-between text-xs">
+                        <span>CGST ({((settings.cgstRate ?? 2.5)).toFixed(1)}%)</span>
+                        <span className="font-semibold text-stone-800 font-mono">₹{(selectedOrderDetails.gst / 2).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span>SGST ({((settings.sgstRate ?? 2.5)).toFixed(1)}%)</span>
+                        <span className="font-semibold text-stone-800 font-mono">₹{(selectedOrderDetails.gst / 2).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                   {selectedOrderDetails.packagingCharge > 0 && (selectedOrderDetails.orderType || "").toLowerCase() !== "takeaway" && (
                     <div className="flex justify-between text-xs">
                       <span>Packaging Surcharge</span>
@@ -3881,7 +3909,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   )}
                   <div className="flex justify-between border-t border-stone-250/60 pt-2 font-bold text-stone-900 text-sm">
                     <span className="text-[#C67C4E]">GRAND DISPATCH TOTAL</span>
-                    <span className="text-[#C67C4E] font-mono">₹{selectedOrderDetails.grandTotal}</span>
+                    <span className="text-[#C67C4E] font-mono">
+                      ₹{settings.gstEnabled && selectedOrderDetails.gst > 0
+                        ? selectedOrderDetails.grandTotal
+                        : Math.max(0, selectedOrderDetails.subtotal + ((selectedOrderDetails.orderType || "").toLowerCase() !== "takeaway" ? (selectedOrderDetails.packagingCharge || 0) : 0) - (selectedOrderDetails.discountAmount || 0))}
+                    </span>
                   </div>
                 </div>
               </div>

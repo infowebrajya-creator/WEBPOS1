@@ -158,7 +158,7 @@ export default function PosBillingPortal({
   const [manualCategory, setManualCategory] = useState("General");
   const [manualQuantity, setManualQuantity] = useState(1);
   const [manualPrice, setManualPrice] = useState("");
-  const [manualGstRate, setManualGstRate] = useState(5);
+  const [manualGstRate, setManualGstRate] = useState(settings.gstEnabled ? (settings.gstRate || 0) : 0);
   const [manualDiscount, setManualDiscount] = useState(0);
   const [manualHsnCode, setManualHsnCode] = useState("");
   const [manualNotes, setManualNotes] = useState("");
@@ -244,7 +244,7 @@ export default function PosBillingPortal({
         quantity: 1,
         isManual: false,
         category: item.category,
-        gstRate: item.gstPercent || settings.gstPercentage || 5,
+        gstRate: settings.gstEnabled ? (item.gstPercent || settings.gstPercentage || 0) : 0,
         discount: 0,
         hsnCode: item.hsnCode || "2106"
       };
@@ -302,7 +302,7 @@ export default function PosBillingPortal({
       setManualName("");
       setManualQuantity(1);
       setManualPrice("");
-      setManualGstRate(5);
+      setManualGstRate(settings.gstEnabled ? (settings.gstRate || 0) : 0);
       setManualDiscount(0);
       setManualHsnCode("");
       setManualNotes("");
@@ -1311,7 +1311,9 @@ export default function PosBillingPortal({
                           {item.discount > 0 && (
                             <span className="text-green-600 font-bold ml-1">(-{item.discount}%)</span>
                           )}
-                          <span className="text-stone-400 ml-1">| GST: {item.gstRate}%</span>
+                          {settings.gstEnabled && item.gstRate > 0 && (
+                            <span className="text-stone-400 ml-1">| GST: {item.gstRate}%</span>
+                          )}
                         </div>
                       </div>
 
@@ -1703,23 +1705,25 @@ export default function PosBillingPortal({
                 </div>
 
                 {/* GST & Discount Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-mono font-bold text-stone-450 uppercase tracking-widest">
-                      GST RATE *
-                    </label>
-                    <select
-                      value={manualGstRate}
-                      onChange={(e) => setManualGstRate(parseInt(e.target.value, 10))}
-                      className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-900 focus:outline-none focus:border-[#C67C4E]"
-                    >
-                      <option value={0}>0% Exempted</option>
-                      <option value={5}>5% Standard F&B</option>
-                      <option value={12}>12% Butter/Dairy</option>
-                      <option value={18}>18% Luxury Surcharge</option>
-                      <option value={28}>28% Sin/Cess Rate</option>
-                    </select>
-                  </div>
+                <div className={`grid ${settings.gstEnabled ? "grid-cols-2" : "grid-cols-1"} gap-3`}>
+                  {settings.gstEnabled && (
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-mono font-bold text-stone-450 uppercase tracking-widest">
+                        GST RATE *
+                      </label>
+                      <select
+                        value={manualGstRate}
+                        onChange={(e) => setManualGstRate(parseInt(e.target.value, 10))}
+                        className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-900 focus:outline-none focus:border-[#C67C4E]"
+                      >
+                        <option value={0}>0% Exempted</option>
+                        <option value={5}>5% Standard F&B</option>
+                        <option value={12}>12% Butter/Dairy</option>
+                        <option value={18}>18% Luxury Surcharge</option>
+                        <option value={28}>28% Sin/Cess Rate</option>
+                      </select>
+                    </div>
+                  )}
 
                   <div className="space-y-1">
                     <label className="block text-[10px] font-mono font-bold text-stone-450 uppercase tracking-widest">
