@@ -3,15 +3,17 @@ import {
   BarChart3, Calendar, Download, Printer, RefreshCw, TrendingUp, TrendingDown,
   DollarSign, ShoppingBag, PieChart as PieChartIcon, Clock, Layers, Utensils,
   ChevronRight, AlertCircle, ArrowUpRight, ArrowDownRight, CheckCircle2,
-  FileSpreadsheet, Filter, Search, Sparkles, X, Check, Landmark, Lock
+  FileSpreadsheet, Filter, Search, Sparkles, X, Check, Landmark, Lock,
+  MessageCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
   PieChart, Pie, Cell, XAxis, YAxis, Tooltip, CartesianGrid, Legend
 } from "recharts";
-import { Order, LocalDB } from "../lib/db";
+import { Order, LocalDB, RestaurantSettings } from "../lib/db";
 import { MenuItem, Category } from "../types";
+import WhatsAppDailySummaryModal from "./WhatsAppDailySummaryModal";
 import {
   DateRangePreset, DateRange, calculateDateRange, filterOrdersByDateRange,
   computeSalesMetrics, computeDailySales, computeMonthlySales, computeYearlySales,
@@ -24,6 +26,8 @@ interface ReportsDashboardProps {
   orders: Order[];
   menuItems: MenuItem[];
   categories: Category[];
+  settings?: RestaurantSettings;
+  onUpdateSettings?: (settings: RestaurantSettings) => void;
   onRefreshOrders?: () => Promise<void>;
   initialSubTab?: "overview" | "daily" | "monthly" | "yearly" | "items" | "categories" | "ledger" | "shifts";
   onSubTabChange?: (tab: "overview" | "daily" | "monthly" | "yearly" | "items" | "categories" | "ledger" | "shifts") => void;
@@ -33,10 +37,13 @@ export default function ReportsDashboard({
   orders,
   menuItems,
   categories,
+  settings: propSettings,
+  onUpdateSettings,
   onRefreshOrders,
   initialSubTab = "overview",
   onSubTabChange
 }: ReportsDashboardProps) {
+  const settings = propSettings || LocalDB.getSettings();
   // Sub-tabs: "overview" | "daily" | "monthly" | "yearly" | "items" | "categories" | "ledger" | "shifts"
   const [activeTab, setActiveTab] = useState<
     "overview" | "daily" | "monthly" | "yearly" | "items" | "categories" | "ledger" | "shifts"
@@ -77,6 +84,7 @@ export default function ReportsDashboard({
   // Loading & refreshing state
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   // Compute Active Date Range
   const dateRange: DateRange = useMemo(() => {
@@ -246,6 +254,17 @@ export default function ReportsDashboard({
 
           <button
             type="button"
+            id="btn-reports-whatsapp-summary"
+            onClick={() => setShowWhatsAppModal(true)}
+            className="px-3.5 py-2 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Send 1-Click Daily Sales Summary to Owner via WhatsApp"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            WhatsApp Summary
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowPrintModal(true)}
             className="px-4 py-2 bg-[#d4af37] hover:bg-[#aa7c11] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
             title="Generate A4 printable sales summary"
@@ -369,6 +388,35 @@ export default function ReportsDashboard({
       {/* -------------------------------------------------------- */}
       {activeTab === "overview" && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          {/* End-of-Day WhatsApp Owner Summary Quick Banner */}
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50/40 to-amber-50/40 border border-emerald-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#25D366] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-stone-900 text-xs sm:text-sm flex items-center gap-2">
+                  End-of-Day Automated Owner Summary
+                  <span className="bg-[#25D366]/20 text-[#128C7E] font-mono text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+                    1-Click WhatsApp
+                  </span>
+                </h4>
+                <p className="text-[11px] text-stone-500">
+                  Dispatch today's gross sales, cash vs UPI split, and top selling dishes to the owner with one tap.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              id="btn-overview-send-whatsapp"
+              onClick={() => setShowWhatsAppModal(true)}
+              className="px-4 py-2 bg-[#25D366] hover:bg-[#1EBE5D] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap self-stretch sm:self-auto"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Send Summary to Owner</span>
+            </button>
+          </div>
+
           {/* Top KPI Cards Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Today's Sales Card */}
@@ -1744,6 +1792,15 @@ export default function ReportsDashboard({
           </>
         )}
       </AnimatePresence>
+
+      {/* 1-Click WhatsApp Daily Closing Summary Modal */}
+      <WhatsAppDailySummaryModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        orders={orders}
+        settings={settings}
+        onUpdateSettings={onUpdateSettings}
+      />
     </div>
   );
 }

@@ -3,7 +3,8 @@ import {
   Plus, Search, Calculator, Shield, ShieldAlert,
   Trash2, Edit3, ClipboardList, CheckCircle, FileText, ShoppingCart, 
   Percent, ArrowRight, User, Phone, MapPin, Sparkles, Hash, Layers,
-  Printer, AlertCircle, RefreshCw, X, ArrowRightLeft, Receipt, Loader2, CheckCircle2
+  Printer, AlertCircle, RefreshCw, X, ArrowRightLeft, Receipt, Loader2, CheckCircle2,
+  MessageCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
@@ -14,6 +15,7 @@ import { RBACService } from "../lib/rbac";
 import { calculateTax } from "../lib/taxService";
 import TransferTableModal from "./TransferTableModal";
 import { SplitBillModal } from "./SplitBillModal";
+import WhatsAppDailySummaryModal from "./WhatsAppDailySummaryModal";
 
 interface PosBillingPortalProps {
   menuItems: MenuItem[];
@@ -153,6 +155,7 @@ export default function PosBillingPortal({
 
   // Modals Toggles
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   // Manual Item Form States
   const [manualName, setManualName] = useState("");
   const [manualCategory, setManualCategory] = useState("General");
@@ -847,6 +850,18 @@ export default function PosBillingPortal({
           >
             <Receipt className="w-3.5 h-3.5 text-[#9a7b20]" />
             <span>Split Bill</span>
+          </button>
+
+          {/* 1-Click WhatsApp Daily Closing Summary */}
+          <button
+            type="button"
+            id="btn-pos-whatsapp-summary"
+            onClick={() => setShowWhatsAppModal(true)}
+            className="bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] border border-[#25D366]/40 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] font-bold uppercase transition-all cursor-pointer shadow-xs"
+            title="Send 1-Click Daily Sales Summary to Owner via WhatsApp"
+          >
+            <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+            <span>Day Summary</span>
           </button>
         </div>
       </div>
@@ -1842,6 +1857,14 @@ export default function PosBillingPortal({
           }}
         />
       )}
+
+      {/* 1-Click WhatsApp Daily Closing Summary Modal */}
+      <WhatsAppDailySummaryModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        orders={orders}
+        settings={settings}
+      />
     </div>
   );
 }

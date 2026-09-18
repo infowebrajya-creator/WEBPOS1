@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { 
   BarChart3, ShoppingCart, Utensils, Users, Landmark, Ticket, 
-  MessageSquare, Package, ShieldCheck, Settings, LogOut, Check, X,
+  MessageSquare, MessageCircle, Package, ShieldCheck, Settings, LogOut, Check, X,
   Search, Plus, Filter, Download, Info, Trash2, Edit2, AlertCircle, 
   Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode,
   BookOpen, Eye, Calculator, History, Bell, Lock, RefreshCw, TrendingUp,
@@ -24,6 +24,7 @@ import TransferTableModal from "./TransferTableModal";
 import { SplitBillModal } from "./SplitBillModal";
 import OrderLifecycleTimeline from "./OrderLifecycleTimeline";
 import WebRajyaLogo from "./WebRajyaLogo";
+import WhatsAppDailySummaryModal from "./WhatsAppDailySummaryModal";
 import { OrderLifecycleService } from "../lib/orderLifecycle";
 import { RBACService } from "../lib/rbac";
 import { StaffMember } from "../types";
@@ -169,6 +170,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // Inactivity tracking: 10 minutes auto-logout
   const [secondsRemaining, setSecondsRemaining] = useState(600); // 10 minutes
   
+  // WhatsApp EOD Summary Modal state
+  const [showWhatsAppSummaryModal, setShowWhatsAppSummaryModal] = useState(false);
+
   // Tab-specific interactive states
   const [autoPrintEnabled, setAutoPrintEnabled] = useState<boolean>(() => localStorage.getItem("ij_auto_print_enabled") !== "false");
   const [orderFilter, setOrderFilter] = useState<string>("All");
@@ -1822,6 +1826,23 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <SidebarBtn icon={<Printer />} label="Printers" active={activeTab === "printers"} onClick={() => handleTabSelect("printers")} />
             <SidebarBtn icon={<Settings />} label="Settings" active={activeTab === "settings"} onClick={() => handleTabSelect("settings")} />
             
+            {/* 1-Click WhatsApp Daily Closing Summary */}
+            <button
+              type="button"
+              id="btn-sidebar-whatsapp-summary"
+              onClick={() => setShowWhatsAppSummaryModal(true)}
+              title="1-Click WhatsApp Daily Closing Report to Owner"
+              className="w-full text-xs font-bold uppercase tracking-wider py-2.5 px-3.5 rounded-xl flex items-center justify-between transition-all cursor-pointer select-none border border-emerald-200/90 bg-emerald-50/70 hover:bg-emerald-100 hover:border-emerald-300 text-emerald-800 hover:text-emerald-950 focus:outline-none group shadow-2xs mt-1"
+            >
+              <div className="flex items-center gap-2.5">
+                <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                <span className="font-sans">DAY SUMMARY</span>
+              </div>
+              <span className="text-[9px] font-mono bg-[#25D366] text-white px-1.5 py-0.5 rounded tracking-tighter shadow-2xs font-bold">
+                WhatsApp
+              </span>
+            </button>
+
             {/* HARD REFRESH Button - Emulates Ctrl/Cmd + Shift + R */}
             <button
               type="button"
@@ -1912,6 +1933,19 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="reports" label="Sales Reports" active={activeTab === "reports"} icon={<TrendingUp />} onClick={() => { handleTabSelect("reports"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="printers" label="Printers" active={activeTab === "printers"} icon={<Printer />} onClick={() => { handleTabSelect("printers"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="settings" label="Settings" active={activeTab === "settings"} icon={<Settings />} onClick={() => { handleTabSelect("settings"); setIsMobileMenuOpen(false); }} />
+                  <button
+                    type="button"
+                    id="btn-mobile-whatsapp-summary"
+                    onClick={() => {
+                      setShowWhatsAppSummaryModal(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    title="1-Click WhatsApp Daily Summary"
+                    className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                    <span>DAY SUMMARY</span>
+                  </button>
                   <button
                     type="button"
                     id="btn-mobile-hard-refresh"
@@ -2051,6 +2085,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   orders={orders}
                   menuItems={menuItems}
                   categories={categoriesList}
+                  settings={settings}
+                  onUpdateSettings={(updated) => {
+                    setSettings(updated);
+                    LocalDB.saveSettings(updated);
+                  }}
                   initialSubTab={reportsSubTab}
                   onSubTabChange={handleReportsSubTabChange}
                   onRefreshOrders={async () => {
@@ -2826,6 +2865,21 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     </div>
 
                     <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-sans font-bold text-stone-500 uppercase tracking-widest block">Owner WhatsApp (Daily Summary)</label>
+                        <span className="text-[9px] font-bold text-[#128C7E] bg-[#25D366]/15 px-1.5 py-0.5 rounded border border-[#25D366]/30">1-Click WhatsApp</span>
+                      </div>
+                      <input
+                        type="tel"
+                        value={settings.ownerWhatsApp || ""}
+                        onChange={(e) => setSettings({ ...settings, ownerWhatsApp: e.target.value })}
+                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2 text-xs rounded-xl focus:outline-none focus:border-[#25D366] text-stone-900 font-sans font-mono"
+                        placeholder="+91 98765 43210 or 9876543210"
+                      />
+                      <p className="text-[10px] text-stone-400">Recipient number for the 1-Click End-of-Day Sales Report.</p>
+                    </div>
+
+                    <div className="space-y-1">
                       <label className="text-[10px] font-sans font-bold text-stone-500 uppercase tracking-widest block">Official Website URL</label>
                       <input
                         type="text"
@@ -3383,6 +3437,47 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <RefreshCw className={`w-3.5 h-3.5 ${isHardRefreshing ? "animate-spin" : ""}`} />
                       <span>{isHardRefreshing ? "REFRESHING..." : "HARD REFRESH"}</span>
                     </button>
+                  </div>
+                </div>
+
+                {/* 9. End-of-Day Automated Owner Summary via WhatsApp */}
+                <div className="bg-white border border-stone-200 rounded-2xl p-6 space-y-4 shadow-sm text-left">
+                  <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                      <h3 className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider">9. End-of-Day Owner WhatsApp Closing Report</h3>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">1-Click WhatsApp</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-sans font-bold text-stone-500 uppercase tracking-widest block">Owner WhatsApp Mobile Number</label>
+                      <input
+                        type="tel"
+                        value={settings.ownerWhatsApp || ""}
+                        onChange={(e) => setSettings({ ...settings, ownerWhatsApp: e.target.value })}
+                        className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2 text-xs rounded-xl focus:outline-none focus:border-[#25D366] text-stone-900 font-sans font-mono"
+                        placeholder="+91 98765 43210 or 9876543210"
+                      />
+                      <p className="text-[10px] text-stone-400">Include country code (e.g. +91). 10-digit Indian numbers will automatically format with +91.</p>
+                    </div>
+
+                    <div className="flex flex-col justify-end space-y-2">
+                      <p className="text-xs text-stone-600 font-sans">
+                        At closing, staff tap <strong>"Send Daily Summary to Owner"</strong>. WhatsApp opens instantly with total sales, cash/UPI splits, and top dishes pre-filled.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          id="btn-settings-test-whatsapp"
+                          onClick={() => setShowWhatsAppSummaryModal(true)}
+                          className="px-3.5 py-2 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>Preview / Send Summary Now</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -5473,6 +5568,18 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           }}
         />
       )}
+
+      {/* 1-Click WhatsApp Daily Closing Summary Modal */}
+      <WhatsAppDailySummaryModal
+        isOpen={showWhatsAppSummaryModal}
+        onClose={() => setShowWhatsAppSummaryModal(false)}
+        orders={orders}
+        settings={settings}
+        onUpdateSettings={(updated) => {
+          setSettings(updated);
+          LocalDB.saveSettings(updated);
+        }}
+      />
 
     </div>
   );

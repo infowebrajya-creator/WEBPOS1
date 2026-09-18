@@ -266,6 +266,9 @@ export interface RestaurantSettings {
   showSignature?: boolean;
   showAmountInWords?: boolean;
   paperWidth?: "80mm" | "58mm";
+
+  // Owner Notifications & Instant Daily Summary
+  ownerWhatsApp?: string;
 }
 
 // Clean empty arrays for WebRajya POS Base
@@ -275,6 +278,7 @@ export const defaultTermsAndConditions: string[] = [];
 const defaultSettings: RestaurantSettings = {
   name: "THE XINGS KITCHEN",
   contactNumber: "",
+  ownerWhatsApp: "",
   address: "",
   businessHours: "Mon-Sun: 10:00 AM - 10:00 PM",
   deliveryCharges: 0,
