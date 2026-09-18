@@ -30,7 +30,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { MenuItem, CartItem, Category } from "../types";
 import { categories as defaultCategories } from "../data";
-import { LocalDB } from "../lib/db";
+import { LocalDB, Order } from "../lib/db";
 import { getScannedTableNumber } from "../lib/router";
 import TableFloorplan from "./TableFloorplan";
 
@@ -80,6 +80,9 @@ export default function MobileView({
   );
 
   // Pre-fill table number from scanned table URL parameters with page refresh persistence
+  const [activeTableOrder, setActiveTableOrder] = useState<Order | null>(null);
+  const [showRunningTabModal, setShowRunningTabModal] = useState(false);
+
   useEffect(() => {
     const syncTable = () => {
       try {
@@ -97,15 +100,33 @@ export default function MobileView({
       }
     };
 
+    const fetchActiveTableOrder = () => {
+      const activeNum = tableNumber || getScannedTableNumber();
+      if (activeNum) {
+        const order = LocalDB.getActiveOrderForTable(activeNum);
+        setActiveTableOrder(order || null);
+      } else {
+        setActiveTableOrder(null);
+      }
+    };
+
     syncTable();
+    fetchActiveTableOrder();
+
     window.addEventListener("app_route_change", syncTable);
     window.addEventListener("storage", syncTable);
+    window.addEventListener("storage", fetchActiveTableOrder);
+    window.addEventListener("new_order", fetchActiveTableOrder);
+    window.addEventListener("tables_updated", fetchActiveTableOrder);
 
     return () => {
       window.removeEventListener("app_route_change", syncTable);
       window.removeEventListener("storage", syncTable);
+      window.removeEventListener("storage", fetchActiveTableOrder);
+      window.removeEventListener("new_order", fetchActiveTableOrder);
+      window.removeEventListener("tables_updated", fetchActiveTableOrder);
     };
-  }, []);
+  }, [tableNumber, orderPlaced]);
 
   // OTP Verification System variables (Mobile)
   const [showOtpMobile, setShowOtpMobile] = useState(false);
@@ -384,6 +405,65 @@ export default function MobileView({
           </>
         )}
       </div>
+
+      {/* Floating Simulated Push SMS Notification Banner (Always visible at top of mobile screen) */}
+      <AnimatePresence>
+        {showOtpMobile && generatedOtpMobile && (
+          <motion.div
+            initial={{ opacity: 0, y: -40, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -40, scale: 0.95 }}
+            onClick={() => {
+              setOtpCodeMobile(generatedOtpMobile);
+              setOtpErrorMobile(null);
+            }}
+            className="fixed top-3 left-3 right-3 max-w-sm mx-auto bg-stone-900/95 backdrop-blur-md text-white p-3 rounded-2xl border border-amber-500/40 shadow-2xl z-50 cursor-pointer flex items-center justify-between gap-3 select-none"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#d4af37] text-stone-950 flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                💬
+              </div>
+              <div className="min-w-0 text-left">
+                <div className="flex items-center gap-1.5 text-[9px] font-mono text-stone-400">
+                  <span className="font-bold text-[#d4af37]">SMS GATEWAY</span>
+                  <span>•</span>
+                  <span>JUST NOW</span>
+                </div>
+                <div className="text-xs text-stone-200 truncate font-sans">
+                  Verification Code: <strong className="text-amber-400 font-mono font-bold text-sm tracking-widest">{generatedOtpMobile}</strong>
+                </div>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 bg-[#d4af37] hover:bg-amber-300 text-stone-950 font-mono font-bold text-[9px] uppercase rounded-lg shrink-0 shadow-2xs">
+              Auto-fill ⚡
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sticky Active Running Tab Banner for Scanned Table */}
+      {activeTableOrder && (
+        <div className="bg-gradient-to-r from-emerald-950 via-stone-900 to-emerald-950 text-white px-4 py-2 border-b border-emerald-500/30 flex items-center justify-between shadow-md sticky top-9 z-35">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex flex-col text-left">
+              <span className="text-[11px] font-bold font-serif text-emerald-300">
+                Table #{activeTableOrder.tableNumber} • Running Tab Active
+              </span>
+              <span className="text-[9px] font-mono text-stone-300">
+                {activeTableOrder.items.length} items ordered • Total: ₹{activeTableOrder.grandTotal}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowRunningTabModal(true)}
+            className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-stone-950 text-[10px] font-mono font-bold uppercase rounded-lg shadow-xs transition-all cursor-pointer"
+          >
+            View Bill
+          </button>
+        </div>
+      )}
 
       {animateContainer(isLoading, activeTab, {
         home: (
@@ -1127,12 +1207,26 @@ export default function MobileView({
                       </div>
 
                       {/* Verification passcode display for demo/sandbox environment */}
-                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[9px] text-stone-750 font-mono flex items-center justify-between">
-                        <span>🔐 SMS VERIFICATION CODE:</span>
-                        <strong className="text-xs font-bold text-[#aa7c11] tracking-wide font-mono">
-                          {generatedOtpMobile}
-                        </strong>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtpCodeMobile(generatedOtpMobile);
+                          setOtpErrorMobile(null);
+                        }}
+                        className="w-full p-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl text-[9px] text-stone-750 font-mono flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
+                      >
+                        <span className="flex items-center gap-1 font-bold text-stone-800">
+                          🔐 SMS VERIFICATION CODE:
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="text-xs font-bold text-[#aa7c11] tracking-widest font-mono">
+                            {generatedOtpMobile}
+                          </strong>
+                          <span className="px-1.5 py-0.5 bg-[#aa7c11] text-white rounded text-[8px] font-bold uppercase">
+                            Auto-fill ⚡
+                          </span>
+                        </div>
+                      </button>
 
                       <div className="flex items-center justify-between pt-1 text-xs">
                         <button
@@ -1549,6 +1643,89 @@ export default function MobileView({
           );
         })}
       </nav>
+
+      {/* Running Tab Modal for Guest Mobile View */}
+      <AnimatePresence>
+        {showRunningTabModal && activeTableOrder && (
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center border-b border-stone-200 pb-3">
+                <div>
+                  <h3 className="font-serif font-bold text-base sm:text-lg text-stone-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#d4af37]" />
+                    Table #{activeTableOrder.tableNumber} Running Bill
+                  </h3>
+                  <p className="text-[10px] text-stone-500 font-mono">
+                    Order ID: #{activeTableOrder.id} • Live Kitchen Tracking
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRunningTabModal(false)}
+                  className="p-1.5 bg-stone-100 hover:bg-stone-200 rounded-full text-stone-600 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Running Items List */}
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto divide-y divide-stone-100 pr-1">
+                {activeTableOrder.items.map((item, idx) => (
+                  <div key={idx} className="pt-2 first:pt-0 flex justify-between items-center text-xs">
+                    <div className="space-y-0.5">
+                      <div className="font-bold text-stone-900">{item.name}</div>
+                      <div className="text-[10px] text-stone-500 font-mono">
+                        ₹{item.price.toLocaleString("en-IN")} x {item.quantity} {item.kotNumber ? `(${item.kotNumber})` : ""}
+                      </div>
+                    </div>
+                    <span className="font-mono font-bold text-stone-900">
+                      ₹{(item.price * item.quantity).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Running Totals */}
+              <div className="bg-stone-50 p-3 rounded-xl space-y-1.5 text-xs border border-stone-200">
+                <div className="flex justify-between text-stone-500">
+                  <span>Subtotal</span>
+                  <span className="font-mono">₹{activeTableOrder.subtotal.toLocaleString("en-IN")}</span>
+                </div>
+                {activeTableOrder.gst > 0 && (
+                  <div className="flex justify-between text-stone-500">
+                    <span>GST Taxes</span>
+                    <span className="font-mono">₹{activeTableOrder.gst.toLocaleString("en-IN")}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-sm text-stone-900 border-t border-stone-200 pt-1.5 mt-1">
+                  <span>Current Running Total</span>
+                  <span className="font-mono text-[#d4af37]">₹{activeTableOrder.grandTotal.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-center text-stone-400 italic font-mono leading-tight">
+                Add more items from the digital menu anytime! Final bill payment will be collected at checkout.
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRunningTabModal(false);
+                  setActiveTab("menu");
+                }}
+                className="w-full py-3 bg-stone-900 hover:bg-stone-850 text-white font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-sm transition-colors"
+              >
+                + Add More Items To Order
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

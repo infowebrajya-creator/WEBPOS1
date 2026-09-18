@@ -25,6 +25,7 @@ import { SplitBillModal } from "./SplitBillModal";
 import OrderLifecycleTimeline from "./OrderLifecycleTimeline";
 import WebRajyaLogo from "./WebRajyaLogo";
 import WhatsAppDailySummaryModal from "./WhatsAppDailySummaryModal";
+import VisualTableManagement from "./VisualTableManagement";
 import { OrderLifecycleService } from "../lib/orderLifecycle";
 import { RBACService } from "../lib/rbac";
 import { StaffMember } from "../types";
@@ -78,6 +79,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   // Sound selection
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Table Management & POS Navigation State
+  const [posInitialTableNumber, setPosInitialTableNumber] = useState<string | undefined>(undefined);
+  const [tablesSubTab, setTablesSubTab] = useState<"visual" | "config">("visual");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // New Order floating alert/toast list
   const [activeAlerts, setActiveAlerts] = useState<Order[]>([]);
@@ -1764,6 +1770,82 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </div>
         </div>
 
+        {/* Top Horizontal Navigation Bar */}
+        <div className="hidden lg:flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200/80 mx-2">
+          <button
+            type="button"
+            onClick={() => handleTabSelect("analytics")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "analytics" ? "bg-[#C67C4E] text-white shadow-2xs" : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/60"
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabSelect("pos")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "pos" ? "bg-[#C67C4E] text-white shadow-2xs" : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/60"
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            <span>POS Billing</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setTablesSubTab("visual"); handleTabSelect("tables"); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              (activeTab === "tables" || activeTab === "visual_tables") && tablesSubTab === "visual"
+                ? "bg-[#C67C4E] text-white shadow-2xs"
+                : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/60"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Tables</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabSelect("orders")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "orders" || activeTab === "history" ? "bg-[#C67C4E] text-white shadow-2xs" : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/60"
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            <span>Orders</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabSelect("menu")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "menu" ? "bg-[#C67C4E] text-white shadow-2xs" : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/60"
+            }`}
+          >
+            <Utensils className="w-3.5 h-3.5" />
+            <span>Menu</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabSelect("reports")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "reports" ? "bg-[#C67C4E] text-white shadow-2xs" : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/60"
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Reports</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabSelect("settings")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "settings" ? "bg-[#C67C4E] text-white shadow-2xs" : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/60"
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Settings</span>
+          </button>
+        </div>
+
         {/* Diagnostic controls, staff profile and countdown */}
         <div className="flex items-center gap-2 md:gap-3 text-xs font-mono">
           {/* Authenticated User Profile Badge */}
@@ -1790,6 +1872,17 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             {soundEnabled ? <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-[#aa7c11]" /> : <VolumeX className="w-3.5 h-3.5 md:w-4 md:h-4 text-stone-400" />}
           </button>
 
+          {/* Sidebar Collapse Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition-all cursor-pointer border border-stone-250 text-[10px] font-mono font-bold uppercase shadow-2xs"
+            title={isSidebarCollapsed ? "Expand Sidebar Menu" : "Collapse Sidebar for Full Workspace"}
+          >
+            <Sliders className="w-3.5 h-3.5 text-[#C67C4E]" />
+            <span>{isSidebarCollapsed ? "Expand Sidebar" : "Compact Sidebar"}</span>
+          </button>
+
           <button
             onClick={() => {
               LocalDB.addAuditLog("Admin Logout", "Authorized admin logout triggered manually", "Admin");
@@ -1803,74 +1896,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </div>
       </header>
 
-      {/* Grid Work Space */}
-      <div className="flex-grow flex flex-col lg:flex-row overflow-hidden">
-        
-        {/* Sidebar Nav rail */}
-        <aside className="w-56 xl:w-60 bg-white border-r border-stone-200/80 hidden lg:flex flex-col p-3 xl:p-4 justify-between flex-shrink-0 overflow-y-auto">
-          <div className="space-y-1.5">
-            <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 mb-1.5">OPERATIONS</p>
-            <SidebarBtn icon={<BarChart3 />} label="Dashboard" active={activeTab === "analytics"} onClick={() => handleTabSelect("analytics")} />
-            <SidebarBtn icon={<Calculator />} label="POS Billing" active={activeTab === "pos"} onClick={() => handleTabSelect("pos")} />
-            <SidebarBtn icon={<ShoppingCart />} label="Orders & History" active={activeTab === "orders" || activeTab === "history"} count={orders.filter(o => o.orderStatus === "New Order").length} onClick={() => handleTabSelect("orders")} />
-            <SidebarBtn icon={<QrCode />} label="Tables & QR Codes" active={activeTab === "tables"} onClick={() => handleTabSelect("tables")} />
-            
-            <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-4 mb-1.5">MENU</p>
-            <SidebarBtn icon={<Utensils />} label="Menu Management" active={activeTab === "menu"} onClick={() => handleTabSelect("menu")} />
-            
-            <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-4 mb-1.5">BUSINESS</p>
-            <SidebarBtn icon={<TrendingUp />} label="Sales & Reports" active={activeTab === "reports"} onClick={() => handleTabSelect("reports")} />
-            <SidebarBtn icon={<PieChart />} label="Analytics" active={activeTab === "analytics"} onClick={() => handleTabSelect("analytics")} />
-
-            <p className="text-[10px] font-mono text-stone-400 tracking-widest uppercase pl-3.5 pt-4 mb-1.5">SYSTEM</p>
-            <SidebarBtn icon={<Printer />} label="Printers" active={activeTab === "printers"} onClick={() => handleTabSelect("printers")} />
-            <SidebarBtn icon={<Settings />} label="Settings" active={activeTab === "settings"} onClick={() => handleTabSelect("settings")} />
-            
-            {/* 1-Click WhatsApp Daily Closing Summary */}
-            <button
-              type="button"
-              id="btn-sidebar-whatsapp-summary"
-              onClick={() => setShowWhatsAppSummaryModal(true)}
-              title="1-Click WhatsApp Daily Closing Report to Owner"
-              className="w-full text-xs font-bold uppercase tracking-wider py-2.5 px-3.5 rounded-xl flex items-center justify-between transition-all cursor-pointer select-none border border-emerald-200/90 bg-emerald-50/70 hover:bg-emerald-100 hover:border-emerald-300 text-emerald-800 hover:text-emerald-950 focus:outline-none group shadow-2xs mt-1"
-            >
-              <div className="flex items-center gap-2.5">
-                <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                <span className="font-sans">DAY SUMMARY</span>
-              </div>
-              <span className="text-[9px] font-mono bg-[#25D366] text-white px-1.5 py-0.5 rounded tracking-tighter shadow-2xs font-bold">
-                WhatsApp
-              </span>
-            </button>
-
-            {/* HARD REFRESH Button - Emulates Ctrl/Cmd + Shift + R */}
-            <button
-              type="button"
-              id="btn-sidebar-hard-refresh"
-              onClick={handleHardRefresh}
-              disabled={isHardRefreshing}
-              title="Apply Hard Refresh (Ctrl/Cmd + Shift + R) - Clears caches & reloads"
-              className="w-full text-xs font-bold uppercase tracking-wider py-2.5 px-3.5 rounded-xl flex items-center justify-between transition-all cursor-pointer select-none border border-amber-200/90 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-300 text-[#aa7c11] hover:text-[#8c6409] focus:outline-none group shadow-2xs mt-1"
-            >
-              <div className="flex items-center gap-2.5">
-                <RefreshCw className={`w-4 h-4 text-[#aa7c11] ${isHardRefreshing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
-                <span className="font-sans">{isHardRefreshing ? "REFRESHING..." : "HARD REFRESH"}</span>
-              </div>
-              <span className="text-[9px] font-mono bg-white text-amber-800 border border-amber-200/80 px-1.5 py-0.5 rounded tracking-tighter shadow-2xs">
-                ⇧⌘R
-              </span>
-            </button>
-          </div>
-
-          {/* Quick legal credentials */}
-          <div className="bg-stone-50 p-3 rounded-xl border border-stone-250/30 text-[9px] font-mono text-stone-500 space-y-1">
-            <p className="text-[#aa7c11] font-bold uppercase text-[9px] tracking-widest">WEBRAJYA POS BASE</p>
-            <p>Version: Clean Base 1.0</p>
-            <p>Session State: Memory-Sync</p>
-            <p>IP Address: 127.0.0.1</p>
-          </div>
-        </aside>
-
+      {/* Main Full-Width Workspace Container */}
+      <div className="flex-grow flex flex-col overflow-hidden">
         {/* Small screen mobile dropdown select terminal */}
         <div className="lg:hidden bg-stone-50/50 px-4 py-2.5 border-b border-stone-200 select-none flex-shrink-0 z-20">
           <div className="flex items-center justify-between bg-white border border-stone-200/90 shadow-[0_2px_10px_rgba(40,30,10,0.01)] rounded-xl p-2">
@@ -1900,7 +1927,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   {activeTab === "settings" && "Portal Settings"}
                   {activeTab === "printers" && "Printers Manager"}
                   {activeTab === "kitchen" && "Kitchen Tickets (KDS)"}
-                  {activeTab === "tables" && "Tables & QR Codes"}
+                  {(activeTab === "tables" || activeTab === "visual_tables") && (tablesSubTab === "visual" ? "Visual Table Management" : "Tables & QR Codes")}
                   {activeTab === "supabase" && "Supabase Diagnostics"}
                 </span>
               </div>
@@ -2109,6 +2136,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   tables={tables}
                   settings={settings}
                   coupons={coupons}
+                  initialTableNumber={posInitialTableNumber}
                   onOrderPlaced={() => {
                     setOrders(LocalDB.getOrders());
                   }}
@@ -3579,43 +3607,99 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </motion.div>
             )}
 
-            {/* TAB CONTENT: TABLES & QR CODES */}
-            {activeTab === "tables" && (
+            {/* TAB CONTENT: TABLES & VISUAL FLOORPLAN */}
+            {(activeTab === "tables" || activeTab === "visual_tables") && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
                 
-                {/* Descriptive Top Panel Card */}
-                <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-serif font-bold text-stone-900 uppercase tracking-wide">Table QR Self-Ordering Engine</h3>
-                    <p className="text-xs text-stone-500 font-sans font-light leading-relaxed max-w-2xl">
-                      Generate unique, secure table QR codes. Guests simply scan their table's code, which automatically opens the digital menu, locks their table location, and enables direct checkout.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                {/* Sub Tab View Switcher */}
+                <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+                  <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl border border-stone-200">
                     <button
                       type="button"
-                      onClick={() => {
-                        const deployed = LocalDB.deployDefaultTables(4);
-                        setTables(deployed);
-                        if (deployed.length > 0) setSelectedTableForQr(deployed[0]);
-                      }}
-                      className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-250 font-mono font-semibold text-[11px] tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto shadow-2xs"
-                      title="Instantly deploy 4 standard tables (Table 01 to 04)"
+                      onClick={() => setTablesSubTab("visual")}
+                      className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                        tablesSubTab === "visual"
+                          ? "bg-[#C67C4E] text-white shadow-2xs"
+                          : "text-stone-600 hover:text-stone-900"
+                      }`}
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Deploy 4 Tables</span>
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Live Visual Floorplan</span>
                     </button>
                     <button
-                      onClick={() => {
-                        setShowAddTable(true);
-                      }}
-                      className="px-4 py-2.5 bg-stone-900 hover:bg-stone-850 text-white font-mono font-semibold text-[11px] tracking-widest uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto border border-stone-900"
+                      type="button"
+                      onClick={() => setTablesSubTab("config")}
+                      className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                        tablesSubTab === "config"
+                          ? "bg-[#C67C4E] text-white shadow-2xs"
+                          : "text-stone-600 hover:text-stone-900"
+                      }`}
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Deploy New Table</span>
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>Table QR & Seating Config</span>
                     </button>
                   </div>
                 </div>
+
+                {tablesSubTab === "visual" ? (
+                  <VisualTableManagement
+                    tables={tables}
+                    orders={orders}
+                    onSelectTableForBilling={(tableNum) => {
+                      setPosInitialTableNumber(tableNum);
+                      handleTabSelect("pos");
+                    }}
+                    onPrintBill={(order) => {
+                      setShowBillPrint(order);
+                    }}
+                    onSettleOrder={(order) => {
+                      setSplitTargetOrder(order);
+                      setShowSplitModal(true);
+                    }}
+                    onTransferTable={(tableNum, order) => {
+                      setTransferSourceTable(tableNum);
+                      setTransferSourceOrder(order);
+                      setShowTransferModal(true);
+                    }}
+                    onRefreshData={refreshAllData}
+                  />
+                ) : (
+                  <>
+                    {/* Descriptive Top Panel Card */}
+                    <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-serif font-bold text-stone-900 uppercase tracking-wide">Table QR Self-Ordering Engine</h3>
+                        <p className="text-xs text-stone-500 font-sans font-light leading-relaxed max-w-2xl">
+                          Generate unique, secure table QR codes. Guests simply scan their table's code, which automatically opens the digital menu, locks their table location, and enables direct checkout.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const deployed = LocalDB.deployDefaultTables(6);
+                            setTables(deployed);
+                            if (deployed.length > 0) setSelectedTableForQr(deployed[0]);
+                          }}
+                          className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-250 font-mono font-semibold text-[11px] tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto shadow-2xs"
+                          title="Instantly deploy 6 standard tables (Table 01 to 06)"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Deploy 6 Tables</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowAddTable(true);
+                          }}
+                          className="px-4 py-2.5 bg-stone-900 hover:bg-stone-850 text-white font-mono font-semibold text-[11px] tracking-widest uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start md:self-auto border border-stone-900"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Deploy New Table</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Main Two-Column split Workspace */}
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -3654,20 +3738,20 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                            <div className="space-y-1">
                              <p className="text-sm font-bold text-stone-800">No Dining Tables Deployed</p>
                              <p className="text-xs text-stone-500 max-w-sm mx-auto">
-                               Deploy 4 standard restaurant dining tables (Table 01 to Table 04) with capacities and instant self-ordering QR codes.
+                               Deploy 6 standard restaurant dining tables (Table 01 to Table 06) with capacities and instant self-ordering QR codes.
                              </p>
                            </div>
                            <button
                              type="button"
                              onClick={() => {
-                               const deployed = LocalDB.deployDefaultTables(4);
+                               const deployed = LocalDB.deployDefaultTables(6);
                                setTables(deployed);
                                if (deployed.length > 0) setSelectedTableForQr(deployed[0]);
                              }}
                              className="inline-flex items-center gap-2 px-4 py-2 bg-[#d4af37] hover:bg-[#b5952f] text-stone-950 text-xs font-mono font-bold uppercase tracking-wider rounded-lg shadow-xs cursor-pointer transition-colors"
                            >
                              <Sparkles className="w-3.5 h-3.5" />
-                             <span>Deploy 4 Tables Now</span>
+                             <span>Deploy 6 Tables Now</span>
                            </button>
                          </div>
                        ) : (
@@ -5592,21 +5676,25 @@ interface SidebarBtnProps {
   active?: boolean;
   count?: number;
   alertColor?: string;
+  collapsed?: boolean;
   onClick: () => void;
 }
 
-function SidebarBtn({ icon, label, active, count, alertColor = "bg-red-500", onClick }: SidebarBtnProps) {
+function SidebarBtn({ icon, label, active, count, alertColor = "bg-red-500", collapsed, onClick }: SidebarBtnProps) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-xs font-bold uppercase tracking-wider py-2.5 px-3.5 rounded-xl flex items-center justify-between transition-all cursor-pointer select-none focus:outline-none ${active ? "bg-[#aa7c11] text-white shadow-[0_4px_15px_rgba(170,124,17,0.15)]" : "text-stone-605 hover:text-stone-900 hover:bg-stone-100"}`}
+      title={collapsed ? label : undefined}
+      className={`w-full text-xs font-bold uppercase tracking-wider transition-all cursor-pointer select-none focus:outline-none ${
+        collapsed ? "p-2.5 flex items-center justify-center rounded-xl" : "py-2.5 px-3.5 rounded-xl flex items-center justify-between"
+      } ${active ? "bg-[#aa7c11] text-white shadow-[0_4px_15px_rgba(170,124,17,0.15)]" : "text-stone-605 hover:text-stone-900 hover:bg-stone-100"}`}
     >
-      <div className="flex items-center gap-2.5">
+      <div className={`flex items-center ${collapsed ? "justify-center" : "gap-2.5"}`}>
         {React.cloneElement(icon as React.ReactElement, { className: "w-4 h-4" })}
-        <span>{label}</span>
+        {!collapsed && <span>{label}</span>}
       </div>
       
-      {count !== undefined && count > 0 && (
+      {!collapsed && count !== undefined && count > 0 && (
         <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full text-white font-black animate-pulse ${alertColor}`}>
           {count}
         </span>

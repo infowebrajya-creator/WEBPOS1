@@ -7,7 +7,8 @@ export type AdminTab =
   | "pos"
   | "orders"
   | "history"
-  | "tables" 
+  | "tables"
+  | "visual_tables" 
   | "menu" 
   | "reports" 
   | "printers" 
@@ -46,6 +47,9 @@ const VALID_ADMIN_TABS: Record<string, AdminTab> = {
   "history": "history",
   "order-history": "history",
   "tables": "tables",
+  "visual-tables": "visual_tables",
+  "floorplan": "visual_tables",
+  "table-management": "visual_tables",
   "reservations": "tables",
   "menu": "menu",
   "catalog": "menu",

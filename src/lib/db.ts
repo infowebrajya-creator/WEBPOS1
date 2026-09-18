@@ -327,12 +327,12 @@ export function stringToNumericId(str: string): number {
   return Math.abs(hash) % 9007199254740991; // Safe inside JS 53-bit float and Postgres bigint
 }
 
-// 4 Standard Deployed Dining Tables for Restaurant POS & QR Self-Ordering
+// 6 Standard Deployed Dining Tables for Restaurant POS & QR Self-Ordering
 export const DEFAULT_DEPLOYED_TABLES: RestaurantTable[] = [
   {
     id: "tbl-01",
     tableNumber: "01",
-    capacity: 2,
+    capacity: 4,
     seatingArea: "Main Dining Hall",
     status: "Available"
   },
@@ -347,14 +347,28 @@ export const DEFAULT_DEPLOYED_TABLES: RestaurantTable[] = [
     id: "tbl-03",
     tableNumber: "03",
     capacity: 4,
-    seatingArea: "Family Section",
+    seatingArea: "Main Dining Hall",
     status: "Available"
   },
   {
     id: "tbl-04",
     tableNumber: "04",
-    capacity: 6,
-    seatingArea: "VIP Lounge",
+    capacity: 4,
+    seatingArea: "Main Dining Hall",
+    status: "Available"
+  },
+  {
+    id: "tbl-05",
+    tableNumber: "05",
+    capacity: 2,
+    seatingArea: "Main Dining Hall",
+    status: "Available"
+  },
+  {
+    id: "tbl-06",
+    tableNumber: "06",
+    capacity: 2,
+    seatingArea: "Main Dining Hall",
     status: "Available"
   }
 ];
@@ -465,7 +479,7 @@ export class LocalDB {
     }
   }
 
-  static deployDefaultTables(count: number = 4): RestaurantTable[] {
+  static deployDefaultTables(count: number = 6): RestaurantTable[] {
     const tablesToDeploy = DEFAULT_DEPLOYED_TABLES.slice(0, count);
     this.saveTables(tablesToDeploy);
     this.addAuditLog("Tables Deployed", `Deployed ${tablesToDeploy.length} dining tables (Table 01 - Table 0${tablesToDeploy.length}) with QR self-ordering support.`, "Admin System");
@@ -1013,9 +1027,10 @@ export class LocalDB {
   static getActiveOrderForTable(tableNumber: string): Order | undefined {
     const orders = this.getOrders();
     const activeStatuses = ["New Order", "Accepted", "Preparing", "Ready", "Served"];
+    const targetNum = String(tableNumber || "").trim().replace(/^0+/, "");
     return orders.find(o => 
       o.orderType === "dine-in" && 
-      String(o.tableNumber).trim() === String(tableNumber).trim() && 
+      String(o.tableNumber || "").trim().replace(/^0+/, "") === targetNum && 
       o.orderStatus !== "Cancelled" &&
       (activeStatuses.includes(o.orderStatus) || o.paymentStatus !== "Paid")
     );
@@ -1528,11 +1543,21 @@ export class LocalDB {
   static async apiAddOrder(order: Omit<Order, "id" | "createdAt">): Promise<Order> {
     debugLog(`[QR ORDER] Initializing order placement - Type: ${order.orderType}, Table: ${order.tableNumber || 'None'}, Items: ${order.items.length}, Grand Total: ₹${order.grandTotal}`);
 
-    // Core boundary validation for Table QR code source
+    // Core boundary validation for Table QR code source & auto-merge into active table order
     if (order.orderType === "dine-in") {
       if (!order.tableNumber || !String(order.tableNumber).trim()) {
         console.error("[QR ORDER] Validation Error: Missing Table Number for Dine-In order.");
         throw new Error("Missing Table Number: Dine-In checkout requires a table QR source.");
+      }
+
+      const activeTableOrder = this.getActiveOrderForTable(order.tableNumber);
+      if (activeTableOrder && activeTableOrder.paymentStatus !== "Paid" && activeTableOrder.orderStatus !== "Cancelled") {
+        console.log(`[QR ORDER] Auto-merging subsequent QR order into active Table ${order.tableNumber} order #${activeTableOrder.id}`);
+        return await this.apiMergeIntoExistingOrder(
+          activeTableOrder,
+          order.items,
+          (order as any).billedBy || "Table QR"
+        );
       }
     }
 
