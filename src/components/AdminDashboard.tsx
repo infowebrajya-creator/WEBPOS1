@@ -23,6 +23,7 @@ import ReportsDashboard from "./ReportsDashboard";
 import TransferTableModal from "./TransferTableModal";
 import { SplitBillModal } from "./SplitBillModal";
 import OrderLifecycleTimeline from "./OrderLifecycleTimeline";
+import WebRajyaLogo from "./WebRajyaLogo";
 import { OrderLifecycleService } from "../lib/orderLifecycle";
 import { RBACService } from "../lib/rbac";
 import { StaffMember } from "../types";
@@ -1687,8 +1688,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       {/* Top Professional Control Strip */}
       <header className="bg-white border-b border-stone-200/80 py-2.5 md:py-3.5 px-4 md:px-6 flex items-center justify-between relative z-30 shadow-xs">
         <div className="flex items-center gap-2 md:gap-3">
-          <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-stone-50 to-stone-100 border border-stone-200 rounded-lg md:rounded-xl flex items-center justify-center text-[#aa7c11] flex-shrink-0">
-            <ShieldCheck className="w-4.5 h-4.5 md:w-5.5 md:h-5.5" />
+          <div className="w-8 h-8 md:w-10 md:h-10 bg-white border border-stone-200 rounded-lg md:rounded-xl flex items-center justify-center p-0.5 flex-shrink-0 shadow-2xs overflow-hidden">
+            <WebRajyaLogo className="w-full h-full object-contain" />
           </div>
           <div>
             <h1 className="text-xs md:text-sm font-serif font-bold text-stone-900 uppercase tracking-wider flex items-center gap-1">

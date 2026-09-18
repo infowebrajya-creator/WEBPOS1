@@ -1,0 +1,65 @@
+<svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="WebRajya Logo">
+  <!-- Outer Circular Ring -->
+  <!-- Upper-left arc -->
+  <path d="M 215 54 C 130 75 64 148 55 236" stroke="#0C1B33" stroke-width="16" stroke-linecap="round"/>
+  <!-- Lower-left arc -->
+  <path d="M 55 264 C 62 345 118 412 195 438" stroke="#0C1B33" stroke-width="16" stroke-linecap="round"/>
+  <!-- Right Orange Arc -->
+  <path d="M 285 444 C 375 435 442 360 445 260 C 447 172 388 95 305 60" stroke="#FF6B00" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Top Cloche (Food Serving Dome) -->
+  <g id="top-cloche">
+    <!-- Steam Wisps -->
+    <path d="M 264 96 C 260 84 268 74 263 60 C 259 48 266 38 262 26" stroke="#0C1B33" stroke-width="6.5" stroke-linecap="round"/>
+    <path d="M 284 92 C 279 78 289 66 283 50 C 279 38 285 24 282 14" stroke="#0C1B33" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 304 96 C 300 84 308 74 303 60 C 299 48 306 38 302 26" stroke="#0C1B33" stroke-width="6.5" stroke-linecap="round"/>
+
+    <!-- Speed / Motion Lines in Orange (Fast Delivery) -->
+    <path d="M 320 126 L 415 126" stroke="#FF6B00" stroke-width="6" stroke-linecap="round"/>
+    <path d="M 340 144 L 440 144" stroke="#FF6B00" stroke-width="6" stroke-linecap="round"/>
+    <path d="M 345 161 L 430 161" stroke="#FF6B00" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- Cloche Knob / Handle -->
+    <path d="M 276 116 C 276 110 292 110 292 116 Z" fill="#0C1B33"/>
+    <rect x="281" y="114" width="6" height="5" fill="#0C1B33"/>
+
+    <!-- Cloche Main Dome -->
+    <path d="M 226 172 C 228 126 250 118 284 118 C 318 118 340 126 342 172 Z" fill="#0C1B33"/>
+
+    <!-- Cloche White Slit Highlight / Divider -->
+    <line x1="230" y1="174" x2="338" y2="174" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+
+    <!-- Cloche Base Tray / Lip -->
+    <path d="M 222 177 L 346 177 C 349 177 349 184 346 184 L 222 184 C 219 184 219 177 222 177 Z" fill="#0C1B33"/>
+  </g>
+
+  <!-- Stylized Brush Letters: "W R" -->
+  <g id="letters-wr">
+    <!-- Letter "W" (Dark Navy) -->
+    <path d="M 104 174 C 114 174 124 186 128 204 L 160 348 C 162 356 166 358 171 352 L 208 244 C 212 232 216 232 220 242 L 246 328 C 249 338 255 338 259 330 L 286 210 C 290 194 294 188 300 192 C 304 195 301 206 296 222 L 268 346 C 263 362 251 364 242 352 L 214 266 L 178 370 C 168 388 152 384 146 364 L 114 214 C 108 190 100 180 94 180 C 88 180 94 174 104 174 Z" fill="#0C1B33"/>
+
+    <!-- Letter "R" (Vibrant Orange) -->
+    <path d="M 314 196 C 322 196 332 202 332 214 L 324 374 C 323 392 316 400 306 400 C 298 400 300 388 302 376 L 310 226 C 311 214 306 206 314 196 Z" fill="#FF6B00"/>
+    <path d="M 314 196 C 354 194 402 212 404 256 C 405 292 376 322 328 328 L 366 328 C 380 328 392 342 402 362 L 418 396 C 426 410 422 418 412 416 C 404 414 396 402 390 390 L 374 358 C 366 342 356 336 338 336 L 324 336 L 326 318 C 362 314 386 294 384 258 C 382 228 348 214 316 214 Z" fill="#FF6B00"/>
+  </g>
+
+  <!-- Bottom Receipt / Invoice Slip -->
+  <g id="bottom-invoice">
+    <!-- Dark Navy Bill Body -->
+    <rect x="214" y="362" width="72" height="80" rx="5" fill="#0C1B33"/>
+
+    <!-- Orange Accent Dot in Bill Header -->
+    <circle cx="228" cy="376" r="4" fill="#FF6B00"/>
+
+    <!-- White Receipt Text Lines -->
+    <line x1="224" y1="390" x2="274" y2="390" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="224" y1="400" x2="274" y2="400" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="224" y1="410" x2="274" y2="410" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="224" y1="420" x2="274" y2="420" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+
+    <!-- Orange Curled Receipt Edge at Bottom -->
+    <path d="M 202 438 C 202 426 214 426 226 426 L 274 426 C 286 426 298 426 298 438 C 298 450 286 450 274 450 L 226 450 C 210 450 202 446 202 438 Z" fill="#FF6B00"/>
+    <path d="M 202 438 C 202 448 214 454 228 454 L 272 454 C 286 454 298 448 298 438 C 298 434 292 432 284 432 L 216 432 C 208 432 202 434 202 438 Z" fill="#E55A00"/>
+    <ellipse cx="286" cy="438" rx="5" ry="3" fill="#0C1B33"/>
+  </g>
+</svg>
