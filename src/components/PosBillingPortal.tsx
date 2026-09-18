@@ -4,7 +4,7 @@ import {
   Trash2, Edit3, ClipboardList, CheckCircle, FileText, ShoppingCart, 
   Percent, ArrowRight, User, Phone, MapPin, Sparkles, Hash, Layers,
   Printer, AlertCircle, RefreshCw, X, ArrowRightLeft, Receipt, Loader2, CheckCircle2,
-  MessageCircle
+  MessageCircle, UtensilsCrossed
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
@@ -73,11 +73,13 @@ export default function PosBillingPortal({
 
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [justPrinted, setJustPrinted] = useState(false);
+  const [isPrintingKOT, setIsPrintingKOT] = useState(false);
+  const [justPrintedKOT, setJustPrintedKOT] = useState(false);
   const [printNotice, setPrintNotice] = useState<{
     type: "success" | "warning";
     message: string;
     details?: string;
-    order: Order;
+    order?: Order;
     suggestedPrinter?: string;
     candidatePrinters?: string[];
   } | null>(null);
@@ -596,7 +598,7 @@ export default function PosBillingPortal({
       setAppliedCoupon(null);
       setCouponCode("");
 
-      // DIRECT THERMAL PRINTING VIA JSPRINTMANAGER (COMBINED BILL -> CUT -> KOT)
+      // DIRECT THERMAL PRINTING VIA JSPRINTMANAGER (CUSTOMER BILL)
       try {
         let isConnected = JSPrintManagerService.isConnected();
         if (!isConnected) {
@@ -604,22 +606,35 @@ export default function PosBillingPortal({
         }
 
         if (isConnected && JSPrintManagerService.isConnected()) {
-          await JSPrintManagerService.printCombinedBillAndKOT(finalOrder, settings);
+          // 1. Print Customer Bill
+          await JSPrintManagerService.printBill(finalOrder, settings);
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
-          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
+
+          // 2. Auto-print KOT if setting enabled
+          const pSettings = getWRPrinterSettings();
+          if (pSettings.autoPrintKOT) {
+            try {
+              const kotData = PhysicalThermalPrinter.buildKOTDataFromOrder(finalOrder);
+              await JSPrintManagerService.printKOT(kotData);
+              await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
+            } catch (kErr) {
+              console.warn("[POS Auto KOT Print]", kErr);
+            }
+          }
           
           setJustPrinted(true);
           setTimeout(() => setJustPrinted(false), 3000);
 
           setPrintNotice({
             type: "success",
-            message: `Bill & KOT #${finalOrder.id} printed successfully via JSPrintManager.`,
+            message: `Bill #${finalOrder.id} printed successfully & recorded to Sales.`,
+            details: `Invoice ₹${finalOrder.grandTotal} recorded in Daily Sales & Dashboard revenue.`,
             order: finalOrder
           });
 
           // Auto-dismiss success notification after 5 seconds
           setTimeout(() => {
-            setPrintNotice(prev => prev?.order.id === finalOrder.id && prev.type === "success" ? null : prev);
+            setPrintNotice(prev => prev?.order?.id === finalOrder.id && prev.type === "success" ? null : prev);
           }, 5000);
         } else {
           // JSPrintManager desktop client is not active on this machine
@@ -627,7 +642,7 @@ export default function PosBillingPortal({
           setPrintNotice({
             type: "warning",
             message: "JSPrintManager desktop service is not running on this computer.",
-            details: "Order saved successfully. You can use 'BROWSER PRINT' or start JSPrintManager to spool to your thermal printer.",
+            details: "Order saved successfully to Sales. You can use 'BROWSER PRINT' or start JSPrintManager to spool to your thermal printer.",
             order: finalOrder
           });
         }
@@ -675,6 +690,91 @@ export default function PosBillingPortal({
       alert(err.message || "Failed to finalize order.");
     } finally {
       setIsFinalizing(false);
+    }
+  };
+
+  // Dedicated KOT (Kitchen Order Ticket) handler: prints ONLY Qty and Items for the kitchen, NO sales entry
+  const handlePrintKOT = async () => {
+    if (cart.length === 0 || isPrintingKOT || isFinalizing) return;
+
+    if (orderType === "dine-in" && !selectedTable) {
+      alert("Please select a Table Number for Dine-In order before printing KOT.");
+      return;
+    }
+
+    setIsPrintingKOT(true);
+
+    try {
+      const kotNumber = `KOT-${Date.now().toString().slice(-4)}`;
+      const kotData = {
+        id: kotNumber,
+        kotNumber: kotNumber,
+        orderId: selectedTable ? `TBL-${selectedTable}` : `POS-${Date.now().toString().slice(-4)}`,
+        tableNumber: orderType === "dine-in" ? selectedTable : undefined,
+        orderType: orderType,
+        customerName: customerName.trim() || (orderType === "dine-in" ? `Table #${selectedTable}` : "Takeaway Guest"),
+        phoneNumber: customerPhone.trim() || undefined,
+        restaurantName: settings?.name || "KITCHEN ORDER TICKET",
+        createdAt: new Date().toISOString(),
+        items: cart.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          customization: item.customization || ""
+        })),
+        specialInstructions: [
+          customerName ? `Guest: ${customerName}` : "",
+          customerPhone ? `Ph: ${customerPhone}` : "",
+        ].filter(Boolean).join(" | ") || undefined
+      };
+
+      // If dine-in, mark table as Occupied so restaurant staff knows guests are active
+      if (orderType === "dine-in" && selectedTable) {
+        const dbTables = LocalDB.getTables();
+        LocalDB.saveTables(dbTables.map(t => t.tableNumber === selectedTable ? { ...t, status: "Occupied" } : t));
+      }
+
+      // CRITICAL ARCHITECTURAL GUARANTEE:
+      // We do NOT call LocalDB.apiAddOrder() here!
+      // KOT is purely an operational kitchen dispatch. 
+      // Only finalized bills created via PRINT BILL enter the sales reports, revenue stats, and admin dashboard.
+
+      let isConnected = JSPrintManagerService.isConnected();
+      if (!isConnected) {
+        isConnected = await JSPrintManagerService.init();
+      }
+
+      if (isConnected && JSPrintManagerService.isConnected()) {
+        await JSPrintManagerService.printKOT(kotData);
+        setJustPrintedKOT(true);
+        setTimeout(() => setJustPrintedKOT(false), 3000);
+
+        setPrintNotice({
+          type: "success",
+          message: `KOT #${kotNumber} printed to kitchen (Qty & Items only).`,
+          details: "Kitchen ticket dispatched. Bill is not finalized and NO sales entry has been recorded."
+        });
+
+        setTimeout(() => {
+          setPrintNotice(prev => prev?.type === "success" ? null : prev);
+        }, 5000);
+      } else {
+        setPrintNotice({
+          type: "warning",
+          message: "JSPrintManager is not running on this laptop.",
+          details: "Start JSPrintManager to send KOT directly to your thermal kitchen printer."
+        });
+      }
+    } catch (err: any) {
+      console.warn("[POS Print KOT Error]", err);
+      setPrintNotice({
+        type: "warning",
+        message: err.message || "Failed to print KOT to kitchen printer.",
+        details: err.suggestedPrinter ? `Detected candidate printer: ${err.suggestedPrinter}` : undefined,
+        suggestedPrinter: err.suggestedPrinter,
+        candidatePrinters: err.candidatePrinters
+      });
+    } finally {
+      setIsPrintingKOT(false);
     }
   };
 
@@ -924,7 +1024,7 @@ export default function PosBillingPortal({
             <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
               {printNotice.type === "warning" && (
                 <>
-                  {printNotice.suggestedPrinter && (
+                  {printNotice.suggestedPrinter && printNotice.order && (
                     <button
                       type="button"
                       onClick={() => {
@@ -933,7 +1033,7 @@ export default function PosBillingPortal({
                           receiptPrinterName: target,
                           kotPrinterName: target
                         });
-                        handleRetryPrint(printNotice.order);
+                        if (printNotice.order) handleRetryPrint(printNotice.order);
                       }}
                       className="px-3 py-1.5 bg-[#C67C4E] hover:bg-[#b0673b] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                       title={`Switch configuration to '${printNotice.suggestedPrinter}' and retry printing`}
@@ -942,7 +1042,7 @@ export default function PosBillingPortal({
                       <span>USE {printNotice.suggestedPrinter}</span>
                     </button>
                   )}
-                  {printNotice.candidatePrinters && printNotice.candidatePrinters.length > 1 && !printNotice.suggestedPrinter && (
+                  {printNotice.candidatePrinters && printNotice.candidatePrinters.length > 1 && !printNotice.suggestedPrinter && printNotice.order && (
                     printNotice.candidatePrinters.slice(0, 2).map((cand) => (
                       <button
                         key={cand}
@@ -952,7 +1052,7 @@ export default function PosBillingPortal({
                             receiptPrinterName: cand,
                             kotPrinterName: cand
                           });
-                          handleRetryPrint(printNotice.order);
+                          if (printNotice.order) handleRetryPrint(printNotice.order);
                         }}
                         className="px-2.5 py-1.5 bg-[#C67C4E] hover:bg-[#b0673b] text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                       >
@@ -961,17 +1061,21 @@ export default function PosBillingPortal({
                       </button>
                     ))
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      PhysicalThermalPrinter.printBillSystemFallback(printNotice.order, settings, "80mm");
-                    }}
-                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                    title="Print receipt using browser / system print"
-                  >
-                    <Printer className="w-3 h-3" />
-                    <span>BROWSER PRINT</span>
-                  </button>
+                  {printNotice.order && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (printNotice.order) {
+                          PhysicalThermalPrinter.printBillSystemFallback(printNotice.order, settings, "80mm");
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-stone-800 hover:bg-stone-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      title="Print receipt using browser / system print"
+                    >
+                      <Printer className="w-3 h-3" />
+                      <span>BROWSER PRINT</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleReconnect}
@@ -981,14 +1085,18 @@ export default function PosBillingPortal({
                     <RefreshCw className={`w-3 h-3 ${isReconnecting ? "animate-spin" : ""}`} />
                     <span>{isReconnecting ? "CONNECTING..." : "RECONNECT"}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRetryPrint(printNotice.order)}
-                    className="px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                  >
-                    <Printer className="w-3 h-3" />
-                    <span>RETRY PRINT</span>
-                  </button>
+                  {printNotice.order && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (printNotice.order) handleRetryPrint(printNotice.order);
+                      }}
+                      className="px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Printer className="w-3 h-3" />
+                      <span>RETRY PRINT</span>
+                    </button>
+                  )}
                 </>
               )}
               <button
@@ -1643,38 +1751,87 @@ export default function PosBillingPortal({
                 </div>
               )}
 
-              {/* Final checkout dispatch trigger */}
-              <button
-                type="button"
-                id="pos-print-bill-btn"
-                disabled={cart.length === 0 || isFinalizing}
-                onClick={handleFinalizeCheckout}
-                title={cart.length === 0 ? "Add items to cart to print bill" : "Print bill directly to JSPrintManager"}
-                className={`w-full py-2.5 sm:py-3 font-mono font-bold uppercase tracking-widest text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${
-                  cart.length === 0 || isFinalizing
-                    ? "opacity-50 cursor-not-allowed bg-stone-700 text-stone-300" 
-                    : justPrinted
-                    ? "bg-emerald-600 text-white shadow-md cursor-pointer"
-                    : "bg-gradient-to-r from-[#C67C4E] to-[#aa7c11] text-white hover:from-[#aa7c11] hover:to-[#C67C4E] shadow-md cursor-pointer"
-                }`}
-              >
-                {isFinalizing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Printing...</span>
-                  </span>
-                ) : justPrinted ? (
-                  <span className="flex items-center justify-center gap-1.5 text-white">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-                    <span>✓ Printed</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <span>PRINT BILL</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                )}
-              </button>
+              {/* Final checkout dispatch triggers: PRINT KOT & PRINT BILL */}
+              <div className="grid grid-cols-2 gap-2 w-full pt-1">
+                {/* BUTTON 1: PRINT KOT (Kitchen Order Ticket - Quantity & Items Only, NO Sales Entry) */}
+                <button
+                  type="button"
+                  id="pos-print-kot-btn"
+                  disabled={cart.length === 0 || isPrintingKOT || isFinalizing}
+                  onClick={handlePrintKOT}
+                  title={cart.length === 0 ? "Add items to cart to print KOT" : "Print Kitchen Order Ticket (Qty & Items only - will not add to Sales/Dashboard)"}
+                  className={`py-2.5 sm:py-3 font-mono font-bold uppercase tracking-wider text-[10px] sm:text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                    cart.length === 0 || isPrintingKOT || isFinalizing
+                      ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
+                      : justPrintedKOT
+                      ? "bg-emerald-700 text-white shadow-md cursor-pointer border border-emerald-500"
+                      : "bg-stone-800 hover:bg-stone-700 text-amber-300 hover:text-amber-200 border border-amber-600/40 shadow-sm cursor-pointer active:scale-[0.98]"
+                  }`}
+                >
+                  {isPrintingKOT ? (
+                    <span className="flex items-center justify-center gap-1.5 text-stone-200">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                      <span>KOT...</span>
+                    </span>
+                  ) : justPrintedKOT ? (
+                    <span className="flex items-center justify-center gap-1 text-emerald-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>KOT ✓</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <UtensilsCrossed className="w-3.5 h-3.5 text-amber-400" />
+                      <span>PRINT KOT</span>
+                    </span>
+                  )}
+                </button>
+
+                {/* BUTTON 2: PRINT BILL (Finalize Checkout & Official Customer Bill - Enters Dashboard & Sales) */}
+                <button
+                  type="button"
+                  id="pos-print-bill-btn"
+                  disabled={cart.length === 0 || isFinalizing || isPrintingKOT}
+                  onClick={handleFinalizeCheckout}
+                  title={cart.length === 0 ? "Add items to cart to print bill" : "Finalize order, record into Sales Dashboard, and print Customer Bill"}
+                  className={`py-2.5 sm:py-3 font-mono font-bold uppercase tracking-wider text-[10px] sm:text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                    cart.length === 0 || isFinalizing || isPrintingKOT
+                      ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60" 
+                      : justPrinted
+                      ? "bg-emerald-600 text-white shadow-md cursor-pointer"
+                      : "bg-gradient-to-r from-[#C67C4E] to-[#aa7c11] text-white hover:from-[#aa7c11] hover:to-[#C67C4E] shadow-md cursor-pointer active:scale-[0.98]"
+                  }`}
+                >
+                  {isFinalizing ? (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Billing...</span>
+                    </span>
+                  ) : justPrinted ? (
+                    <span className="flex items-center justify-center gap-1 text-emerald-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Bill ✓</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>PRINT BILL</span>
+                      <ArrowRight className="w-3 h-3 opacity-80" />
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Distinction Micro-Legend */}
+              <div className="flex items-center justify-between px-1 text-[8px] font-mono text-stone-400 select-none">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 inline-block"></span>
+                  <span>KOT: Kitchen only (Qty & Items)</span>
+                </span>
+                <span className="flex items-center gap-1 text-emerald-400/90">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                  <span>BILL: Adds to Sales & Dashboard</span>
+                </span>
+              </div>
             </div>
 
           </div>

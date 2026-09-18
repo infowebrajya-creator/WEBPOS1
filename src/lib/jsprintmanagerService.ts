@@ -543,13 +543,14 @@ export class JSPrintManagerService {
     bytes: Uint8Array,
     targetPrinter?: string,
     copies: number = 1,
-    docName: string = "POS-Bill"
+    docName: string = "POS-Bill",
+    role: "receipt" | "kot" = "receipt"
   ): Promise<{ success: boolean; printerUsed: string }> {
     if (typeof window === "undefined") {
       throw new Error("Printing is only supported in a browser environment.");
     }
 
-    console.log(`[PrinterManager] Print job started: '${docName}'`);
+    console.log(`[PrinterManager] Print job started: '${docName}' (role: ${role})`);
 
     // Step 1: Strict connection check BEFORE dispatching
     if (!this.isConnected()) {
@@ -577,7 +578,7 @@ export class JSPrintManagerService {
     }
 
     // Step 2: Printer Discovery / Configuration check using centralized PrinterManager
-    const resolution = await PrinterManager.resolvePrinter("receipt", targetPrinter);
+    const resolution = await PrinterManager.resolvePrinter(role, targetPrinter);
 
     if (resolution.status === "service_offline") {
       const offlineErr: any = new Error("JSPrintManager desktop service is not running on this computer.");
@@ -589,7 +590,7 @@ export class JSPrintManagerService {
 
     if (!effectivePrinterName) {
       const pConfig = PrinterManager.getConfiguredPrinter();
-      const configuredName = targetPrinter || pConfig.receiptPrinterName;
+      const configuredName = targetPrinter || (role === "kot" ? pConfig.kotPrinterName : pConfig.receiptPrinterName);
       let detailedMsg = `Your configured printer '${configuredName}' is not currently available.`;
       if (resolution.candidatePrinters && resolution.candidatePrinters.length > 0) {
         detailedMsg += ` Detected printer: ${resolution.candidatePrinters.join(", ")}`;
@@ -603,7 +604,7 @@ export class JSPrintManagerService {
       throw err;
     }
 
-    console.log(`[PrinterManager] Selected printer: '${effectivePrinterName}' (match: ${resolution.matchType || "direct"})`);
+    console.log(`[PrinterManager] Selected printer: '${effectivePrinterName}' (role: ${role}, match: ${resolution.matchType || "direct"})`);
 
     // Step 3: Create ClientPrintJob and send ESC/POS
     const cpj = new JSPM.ClientPrintJob();
@@ -629,10 +630,11 @@ export class JSPrintManagerService {
     hex: string,
     targetPrinter?: string,
     copies: number = 1,
-    docName: string = "POS-Receipt"
+    docName: string = "POS-Receipt",
+    role: "receipt" | "kot" = "receipt"
   ): Promise<{ success: boolean; printerUsed: string }> {
     const bytes = hexToBytes(hex);
-    return this.printRawBytes(bytes, targetPrinter, copies, docName);
+    return this.printRawBytes(bytes, targetPrinter, copies, docName, role);
   }
 
   /**
@@ -651,7 +653,8 @@ export class JSPrintManagerService {
       combinedHex,
       pSettings.printerName,
       pSettings.copies,
-      `Bill-KOT-${order.id || "Order"}`
+      `Bill-KOT-${order.id || "Order"}`,
+      "receipt"
     );
     return res.success;
   }
@@ -661,27 +664,31 @@ export class JSPrintManagerService {
    */
   public static async printBill(order: any, settings: any): Promise<boolean> {
     const pSettings = getWRPrinterSettings();
+    const config = PrinterManager.getConfiguredPrinter();
     const billHex = buildBillESCPOS(order, settings, pSettings);
     const res = await this.printRawHex(
       billHex,
-      pSettings.printerName,
+      config.receiptPrinterName || pSettings.printerName,
       pSettings.copies,
-      `Bill-${order.id || "Order"}`
+      `Bill-${order.id || "Order"}`,
+      "receipt"
     );
     return res.success;
   }
 
   /**
-   * Print Kitchen Order Ticket (KOT) only via JSPrintManager
+   * Print Kitchen Order Ticket (KOT) only via JSPrintManager (Qty & Items only, no prices)
    */
   public static async printKOT(kotData: any): Promise<boolean> {
     const pSettings = getWRPrinterSettings();
+    const config = PrinterManager.getConfiguredPrinter();
     const kotHex = buildKOTESCPOS(kotData, pSettings);
     const res = await this.printRawHex(
       kotHex,
-      pSettings.printerName,
+      config.kotPrinterName || config.receiptPrinterName || pSettings.printerName,
       pSettings.copies,
-      `KOT-${kotData.kotNumber || kotData.id || "Ticket"}`
+      `KOT-${kotData.kotNumber || kotData.id || "Ticket"}`,
+      "kot"
     );
     return res.success;
   }

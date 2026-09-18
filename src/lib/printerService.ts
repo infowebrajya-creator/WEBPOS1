@@ -2163,8 +2163,9 @@ export function buildKOTESCPOS(data: any, printerSettings: WRPrinterSettings): s
 
   // 1. Header (Centered, bold)
   builder.alignCenter().bold(true);
-  builder.writeText("THE XINGS KITCHEN\n");
-  builder.writeText("KOT\n");
+  const kitchenTitle = (data.restaurantName || data.storeName || "KITCHEN ORDER TICKET").toUpperCase();
+  builder.writeText(`${kitchenTitle}\n`);
+  builder.writeText("KOT (KITCHEN COPY)\n");
   builder.bold(false);
   builder.writeText(dividerLine + "\n");
 
