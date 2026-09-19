@@ -111,7 +111,7 @@ export class PhysicalThermalPrinter {
 
     // 1. Header (Centered, bold)
     lines.push({ text: "THE XINGS KITCHEN", align: "center", bold: true });
-    lines.push({ text: "KOT", align: "center", bold: true });
+    lines.push({ text: (data as any).kotTitle || "KOT", align: "center", bold: true });
     lines.push({ text: divider, align: "center" });
 
     // 2. Metadata Section (Left aligned)
@@ -1767,6 +1767,7 @@ export class PhysicalThermalPrinter {
       id: `KOT-${order.id}`,
       orderId: order.id,
       kotNumber: `KOT-${order.id}`,
+      kotTitle: (order as any).kotTitle || "FINAL KOT",
       tableNumber: order.tableNumber,
       orderType: order.orderType,
       customerName: order.customerName,

@@ -77,6 +77,7 @@ export interface Order {
     discount?: number;
     hsnCode?: string;
     notes?: string;
+    printedKotQuantity?: number;
   }[];
   subtotal: number;
   gst: number;
@@ -1984,12 +1985,30 @@ export class LocalDB {
           previousPaymentStatus
         }
       }));
-
-
     }
 
-    // 3. Always return the updated local order
-    return current[idx] || { id: orderId, orderStatus: status, paymentStatus: paymentStatus } as any;
+    return orderCopy || current[idx];
+  }
+
+  static async apiCancelOrder(orderId: string, passwordInput: string, reason: string, operator: string = "Staff"): Promise<Order> {
+    if (passwordInput !== "cancel@123") {
+      throw new Error("Incorrect cancellation password.");
+    }
+    const trimmedReason = (reason || "").trim();
+    if (!trimmedReason) {
+      throw new Error("Please enter a reason for cancellation.");
+    }
+
+    const updatedOrder = await this.apiUpdateOrderStatus(orderId, "Cancelled", undefined, operator);
+    const orders = this.getOrders();
+    const idx = orders.findIndex(o => o.id === orderId);
+    if (idx !== -1) {
+      orders[idx].cancellationReason = trimmedReason;
+      orders[idx].cancelledAt = orders[idx].cancelledAt || new Date().toISOString();
+      this.saveOrders(orders);
+      window.dispatchEvent(new Event("storage"));
+    }
+    return updatedOrder;
   }
 
   static supportedColumns: string[] = [];

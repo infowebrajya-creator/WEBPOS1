@@ -837,9 +837,31 @@ export default function PosBillingPortal({
         }
 
         if (isConnected && JSPrintManagerService.isConnected()) {
-          // 1. Print Customer Bill ONLY (Single Print Job)
+          // 1. Print FINAL BILL (Containing ALL current items)
           await JSPrintManagerService.printBill(finalOrder, settings);
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
+
+          // 2. Print FINAL KOT (Master ticket containing ALL final items)
+          const finalKotData = {
+            id: `KOT-${finalOrder.id}`,
+            kotNumber: `KOT-${finalOrder.id}`,
+            kotTitle: "FINAL KOT",
+            orderId: finalOrder.id,
+            tableNumber: finalOrder.tableNumber,
+            orderType: finalOrder.orderType,
+            customerName: finalOrder.customerName,
+            phoneNumber: finalOrder.phoneNumber,
+            restaurantName: settings?.name || "KITCHEN ORDER TICKET",
+            createdAt: new Date().toISOString(),
+            items: finalOrder.items.map(i => ({
+              name: i.name,
+              quantity: i.quantity,
+              customization: i.customization || ""
+            })),
+            specialInstructions: "FINAL KOT | COMPLETE SESSION ORDER"
+          };
+          await JSPrintManagerService.printKOT(finalKotData);
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
 
           setJustPrinted(true);
           setTimeout(() => setJustPrinted(false), 3000);
@@ -929,23 +951,30 @@ export default function PosBillingPortal({
       return;
     }
 
-    const unsentItems = cart.filter(item => !item.isKotSent);
-    let itemsToPrint = unsentItems;
+    // Calculate unprinted quantity per item: currentQuantity - alreadyPrintedQuantity
+    const unprintedItems = cart
+      .map(item => ({
+        item,
+        unprintedQty: Math.max(0, item.quantity - (item.printedKotQuantity || 0))
+      }))
+      .filter(x => x.unprintedQty > 0);
+
+    let itemsToPrint = unprintedItems;
     let isReprint = false;
 
-    if (unsentItems.length === 0) {
+    if (unprintedItems.length === 0) {
       const confirmReprint = window.confirm(
         "All items in this active order have already been sent to the kitchen via previous KOTs.\n\nDo you want to RE-PRINT the full consolidated KOT for all items?"
       );
       if (!confirmReprint) return;
-      itemsToPrint = cart;
+      itemsToPrint = cart.map(item => ({ item, unprintedQty: item.quantity }));
       isReprint = true;
     }
 
     setIsPrintingKOT(true);
 
     try {
-      const hasSentBefore = cart.some(item => item.isKotSent);
+      const hasSentBefore = cart.some(item => (item.printedKotQuantity || 0) > 0);
       const kotCount = (LocalDB.getKOTs()?.length || 0) + 1;
       const kotNumber = `KOT-${String(kotCount).padStart(4, "0")}`;
       const headerTitle = isReprint
@@ -957,6 +986,7 @@ export default function PosBillingPortal({
       const kotData = {
         id: kotNumber,
         kotNumber: kotNumber,
+        kotTitle: isReprint ? "KOT (RE-PRINT)" : "KOT",
         orderId: selectedTable ? `TBL-${selectedTable}` : `POS-${Date.now().toString().slice(-4)}`,
         tableNumber: orderType === "dine-in" ? selectedTable : undefined,
         orderType: orderType,
@@ -964,10 +994,10 @@ export default function PosBillingPortal({
         phoneNumber: customerPhone.trim() || undefined,
         restaurantName: settings?.name || "KITCHEN ORDER TICKET",
         createdAt: new Date().toISOString(),
-        items: itemsToPrint.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          customization: item.customization || ""
+        items: itemsToPrint.map(x => ({
+          name: x.item.name,
+          quantity: x.unprintedQty,
+          customization: x.item.customization || ""
         })),
         specialInstructions: [
           headerTitle,
@@ -976,8 +1006,13 @@ export default function PosBillingPortal({
         ].filter(Boolean).join(" | ") || undefined
       };
 
-      // Mark all cart items as sent & assign kotNumber
-      const updatedCart = cart.map(item => ({ ...item, isKotSent: true, kotNumber: item.kotNumber || kotNumber }));
+      // Mark all cart items printedKotQuantity = quantity
+      const updatedCart = cart.map(item => ({
+        ...item,
+        isKotSent: true,
+        printedKotQuantity: item.quantity,
+        kotNumber: item.kotNumber || kotNumber
+      }));
       setCart(updatedCart);
 
       if (orderType === "dine-in" && selectedTable) {
@@ -1009,7 +1044,8 @@ export default function PosBillingPortal({
             gstRate: i.gstRate,
             discount: i.discount,
             hsnCode: i.hsnCode,
-            kotNumber: i.kotNumber || kotNumber
+            kotNumber: i.kotNumber || kotNumber,
+            printedKotQuantity: i.quantity
           })),
           subtotal: cartTotals.subtotal - cartTotals.itemDiscounts,
           gst: cartTotals.gst,

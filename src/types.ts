@@ -21,6 +21,7 @@ export interface CartItem {
   menuItem: MenuItem;
   quantity: number;
   customization?: string;
+  printedKotQuantity?: number;
 }
 
 export interface Category {
@@ -99,6 +100,7 @@ export interface OrderItem {
   addedBy?: string;
   kotNumber?: string;
   sessionNumber?: number;
+  printedKotQuantity?: number;
 }
 
 export type OrderSource = "POS" | "QR" | "ONLINE" | "DINE_IN_QR";
