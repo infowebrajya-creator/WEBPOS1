@@ -904,6 +904,13 @@ export default function PosBillingPortal({
           suggestedPrinter,
           candidatePrinters
         });
+
+        // Trigger direct standard 1-click browser print fallback without workstation popup
+        try {
+          PhysicalThermalPrinter.printBillSystemFallback(finalOrder, settings, "80mm");
+        } catch (fErr) {
+          console.warn("[POS Fallback Print]", fErr);
+        }
       }
     } catch (err: any) {
       alert(err.message || "Failed to finalize order.");
@@ -2697,12 +2704,12 @@ export default function PosBillingPortal({
                           orderStatus: "New Order",
                           createdAt: new Date().toISOString()
                         };
-                        setShowBillPrint(dummyOrder);
+                        PhysicalThermalPrinter.printBillSystemFallback(dummyOrder, settings, "80mm");
                       }}
                       className="flex-1 sm:flex-none px-3 py-2.5 bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-600/40 font-mono font-bold text-[10px] uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1"
                     >
                       <Printer className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Print Workstation</span>
+                      <span>Direct Browser Print</span>
                     </button>
                   )}
 
