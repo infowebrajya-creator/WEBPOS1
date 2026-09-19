@@ -1052,6 +1052,57 @@ export class LocalDB {
     );
   }
 
+  static async apiUpdateOrderItems(
+    orderId: string,
+    items: any[],
+    subtotal: number,
+    gst: number,
+    grandTotal: number
+  ): Promise<Order | null> {
+    const orders = this.getOrders();
+    const idx = orders.findIndex(o => o.id === orderId);
+    if (idx === -1) return null;
+
+    orders[idx].items = items;
+    orders[idx].subtotal = subtotal;
+    orders[idx].gst = gst;
+    orders[idx].grandTotal = grandTotal;
+
+    if (items.length === 0) {
+      orders[idx].orderStatus = "Cancelled";
+      if (orders[idx].tableNumber) {
+        const dbTables = this.getTables();
+        const tgtNum = orders[idx].tableNumber;
+        this.saveTables(dbTables.map(t => isSameTable(t.tableNumber, tgtNum) ? { ...t, status: "Available" } : t));
+      }
+    }
+
+    this.saveOrders(orders);
+
+    try {
+      if (items.length === 0) {
+        await supabase.from("orders").update({ order_status: "Cancelled" }).eq("id", orderId);
+      } else {
+        await supabase.from("orders").update({
+          items: items,
+          subtotal: subtotal,
+          tax: gst,
+          grand_total: grandTotal
+        }).eq("id", orderId);
+      }
+    } catch (e) {
+      console.warn("[Supabase apiUpdateOrderItems Offline]", e);
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("storage"));
+      window.dispatchEvent(new Event("new_order"));
+      window.dispatchEvent(new Event("tables_updated"));
+    }
+
+    return orders[idx];
+  }
+
   static async apiTransferTableOrder(
     sourceTableNumber: string,
     targetTableNumber: string,

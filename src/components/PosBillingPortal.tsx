@@ -433,15 +433,68 @@ export default function PosBillingPortal({
     );
   };
 
-  // Handle quantity adjustment
+  const syncCartToActiveOrder = async (updatedCart: CartItem[]) => {
+    setCart(updatedCart);
+    if (selectedTable && orderType === "dine-in") {
+      setTableCarts(prev => ({ ...prev, [selectedTable]: updatedCart }));
+    }
+
+    if (orderType === "dine-in" && selectedTable && activeOrderForSelectedTable) {
+      const newItems = updatedCart.map(item => ({
+        menuItemId: item.isManual ? "manual" : item.id.replace("reg-", ""),
+        name: item.name,
+        price: item.price - (item.price * (item.discount / 100)),
+        quantity: item.quantity,
+        customization: item.customization,
+        isManual: item.isManual,
+        category: item.category,
+        gstRate: item.gstRate,
+        discount: item.discount,
+        hsnCode: item.hsnCode,
+        notes: item.customization,
+        isKotSent: item.isKotSent,
+        kotNumber: item.kotNumber
+      }));
+
+      let newSub = 0;
+      let newGst = 0;
+      updatedCart.forEach(i => {
+        const lineNet = (i.price - (i.price * (i.discount / 100))) * i.quantity;
+        newSub += lineNet;
+        if (settings.gstEnabled && i.gstRate > 0) {
+          newGst += lineNet * (i.gstRate / 100);
+        }
+      });
+
+      await LocalDB.apiUpdateOrderItems(
+        activeOrderForSelectedTable.id,
+        newItems,
+        newSub,
+        newGst,
+        newSub + newGst
+      );
+      onOrderPlaced();
+    }
+  };
+
+  // Handle quantity adjustment (If qty drops to 0, remove item)
   const handleAdjustQuantity = (id: string, delta: number) => {
-    setCart(prev => prev.map(item => {
+    const target = cart.find(item => item.id === id);
+    if (!target) return;
+
+    if (delta < 0 && target.quantity <= 1) {
+      handleRemoveFromCart(id);
+      return;
+    }
+
+    const nextCart = cart.map(item => {
       if (item.id === id) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
+        return { ...item, quantity: item.quantity + delta };
       }
       return item;
-    }));
+    });
+
+    syncCartToActiveOrder(nextCart);
   };
 
   // RBAC Permission verification helper
@@ -473,7 +526,8 @@ export default function PosBillingPortal({
         newValue: val
       },
       () => {
-        setCart(prev => prev.map(item => item.id === id ? { ...item, price: val } : item));
+        const nextCart = cart.map(item => item.id === id ? { ...item, price: val } : item);
+        syncCartToActiveOrder(nextCart);
         LocalDB.addAuditLog(
           "POS Price Override",
           `Overrode unit price for "${targetItem.name}" from ₹${targetItem.price} to ₹${val}`,
@@ -504,7 +558,8 @@ export default function PosBillingPortal({
         newValue: val
       },
       () => {
-        setCart(prev => prev.map(item => item.id === id ? { ...item, discount: val } : item));
+        const nextCart = cart.map(item => item.id === id ? { ...item, discount: val } : item);
+        syncCartToActiveOrder(nextCart);
         LocalDB.addAuditLog(
           "POS Item Discount Overridden",
           `Overrode item-level discount for "${targetItem.name}" to ${val}%`,
@@ -515,7 +570,7 @@ export default function PosBillingPortal({
     );
   };
 
-  // Handle manual / regular item removal (Void)
+  // Handle manual / regular item removal (Void) - Works for quantity 1, 20, or any amount
   const handleRemoveFromCart = (id: string) => {
     const targetItem = cart.find(c => c.id === id);
     if (!targetItem) return;
@@ -525,16 +580,17 @@ export default function PosBillingPortal({
       {
         actionType: "delete_item",
         title: "Cart Item Void Authorization",
-        description: `Void and remove item "${targetItem.name}" (₹${targetItem.price * targetItem.quantity}) from active bill`,
+        description: `Void and remove item "${targetItem.name}" (Qty: ${targetItem.quantity}, Total: ₹${targetItem.price * targetItem.quantity}) from active bill`,
         targetId: id,
         targetName: targetItem.name,
         originalValue: targetItem.price * targetItem.quantity
       },
       () => {
-        setCart(prev => prev.filter(item => item.id !== id));
+        const nextCart = cart.filter(item => item.id !== id);
+        syncCartToActiveOrder(nextCart);
         LocalDB.addAuditLog(
           "POS Cart Item Deleted",
-          `Removed item "${targetItem.name}" from billing cart`,
+          `Removed item "${targetItem.name}" (Qty: ${targetItem.quantity}) from billing cart`,
           `POS (${activeStaff.name} - ${activeStaff.role})`
         );
       }
@@ -1912,12 +1968,12 @@ export default function PosBillingPortal({
                         </button>
                         <button
                           type="button"
-                          title="Remove item from cart"
+                          title={`Remove ${item.name} completely from cart (Qty: ${item.quantity})`}
                           onClick={() => handleRemoveFromCart(item.id)}
-                          className="text-red-500 hover:text-red-700 flex items-center gap-1 cursor-pointer font-bold font-mono text-[8px]"
+                          className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md font-mono font-bold text-[9px] uppercase cursor-pointer flex items-center gap-1 transition-all active:scale-95 shadow-2xs"
                         >
-                          <Trash2 className="w-2.5 h-2.5" />
-                          REMOVE
+                          <Trash2 className="w-2.5 h-2.5 text-red-500" />
+                          <span>REMOVE ITEM</span>
                         </button>
                       </div>
                     )}
