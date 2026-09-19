@@ -837,21 +837,9 @@ export default function PosBillingPortal({
         }
 
         if (isConnected && JSPrintManagerService.isConnected()) {
-          // 1. Print Customer Bill
+          // 1. Print Customer Bill ONLY (Single Print Job)
           await JSPrintManagerService.printBill(finalOrder, settings);
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
-
-          // 2. Auto-print KOT if setting enabled
-          const pSettings = getWRPrinterSettings();
-          if (pSettings.autoPrintKOT) {
-            try {
-              const kotData = PhysicalThermalPrinter.buildKOTDataFromOrder(finalOrder);
-              await JSPrintManagerService.printKOT(kotData);
-              await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
-            } catch (kErr) {
-              console.warn("[POS Auto KOT Print]", kErr);
-            }
-          }
 
           setJustPrinted(true);
           setTimeout(() => setJustPrinted(false), 3000);
