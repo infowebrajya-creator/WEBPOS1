@@ -598,11 +598,11 @@ export default function PosBillingPortal({
     );
   };
 
-  // Handle 1-click Clear Bill (Void all items)
+  // Handle 1-click Clear Bill (Void all items and free table)
   const handleClearCart = () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 && !selectedTable) return;
 
-    if (window.confirm("Are you sure you want to clear all items from this active bill?")) {
+    if (window.confirm("Are you sure you want to clear all items from this active bill and make the table available?")) {
       executeWithPermission(
         "pos.void_item",
         {
@@ -612,15 +612,39 @@ export default function PosBillingPortal({
         },
         async () => {
           await syncCartToActiveOrder([]);
+          setCart([]);
           setCustomerName("");
           setCustomerPhone("");
           setCustomerEmail("");
           setCustomerAddress("");
           setAppliedCoupon(null);
           setCouponCode("");
+
+          if (selectedTable) {
+            const dbTables = LocalDB.getTables();
+            LocalDB.saveTables(dbTables.map(t => isSameTable(t.tableNumber, selectedTable) ? { ...t, status: "Available" } : t));
+
+            setTableCarts(prev => {
+              const next = { ...prev };
+              Object.keys(next).forEach(k => {
+                if (isSameTable(k, selectedTable)) delete next[k];
+              });
+              return next;
+            });
+            setTableCustomerInfo(prev => {
+              const next = { ...prev };
+              Object.keys(next).forEach(k => {
+                if (isSameTable(k, selectedTable)) delete next[k];
+              });
+              return next;
+            });
+            setSelectedTable("");
+            window.dispatchEvent(new Event("storage"));
+          }
+
           LocalDB.addAuditLog(
             "POS Bill Cleared",
-            `Cleared all items from billing cart [Table #${selectedTable || "N/A"}]`,
+            `Cleared all items from billing cart and marked table Available [Table #${selectedTable || "N/A"}]`,
             `POS (${activeStaff.name} - ${activeStaff.role})`
           );
         }
@@ -792,10 +816,10 @@ export default function PosBillingPortal({
         `POS (${currentRole})`
       );
 
-      // If dine-in, let's mark table status & update table memory
+      // If dine-in, mark table status as Available & clear table session memory
       if (orderType === "dine-in" && selectedTable) {
         const dbTables = LocalDB.getTables();
-        const targetStatus = (finalOrder.paymentStatus === "Paid") ? "Available" : "Occupied";
+        const targetStatus = "Available";
         LocalDB.saveTables(dbTables.map(t => isSameTable(t.tableNumber, selectedTable) ? { ...t, status: targetStatus } : t));
 
         if (targetStatus === "Available") {
