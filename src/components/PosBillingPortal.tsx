@@ -597,6 +597,36 @@ export default function PosBillingPortal({
     );
   };
 
+  // Handle 1-click Clear Bill (Void all items)
+  const handleClearCart = () => {
+    if (cart.length === 0) return;
+
+    if (window.confirm("Are you sure you want to clear all items from this active bill?")) {
+      executeWithPermission(
+        "pos.void_item",
+        {
+          actionType: "clear_bill",
+          title: "Clear Active Bill Authorization",
+          description: `Clear all ${cart.length} items from active bill for Table #${selectedTable || "N/A"}`
+        },
+        async () => {
+          await syncCartToActiveOrder([]);
+          setCustomerName("");
+          setCustomerPhone("");
+          setCustomerEmail("");
+          setCustomerAddress("");
+          setAppliedCoupon(null);
+          setCouponCode("");
+          LocalDB.addAuditLog(
+            "POS Bill Cleared",
+            `Cleared all items from billing cart [Table #${selectedTable || "N/A"}]`,
+            `POS (${activeStaff.name} - ${activeStaff.role})`
+          );
+        }
+      );
+    }
+  };
+
   // Verify and apply global promo coupons
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1561,9 +1591,22 @@ export default function PosBillingPortal({
                 <ShoppingCart className="w-3.5 h-3.5 text-[#C67C4E]" />
                 Active Billing Cart
               </span>
-              <span className="text-stone-900 font-bold font-mono text-[11px] bg-white px-2 py-0.5 rounded-md border border-stone-200">
-                {cart.length} Item{cart.length !== 1 && "s"}
-              </span>
+              <div className="flex items-center gap-1.5">
+                {cart.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearCart}
+                    title="Clear all items from this bill / cart"
+                    className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md font-mono font-bold text-[9px] uppercase cursor-pointer flex items-center gap-1 transition-all active:scale-95 shadow-2xs"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-500" />
+                    <span>CLEAR BILL</span>
+                  </button>
+                )}
+                <span className="text-stone-900 font-bold font-mono text-[11px] bg-white px-2 py-0.5 rounded-md border border-stone-200">
+                  {cart.length} {cart.length === 1 ? "Item" : "Items"}
+                </span>
+              </div>
             </div>
 
             {/* Order Type Toggle Selector */}
