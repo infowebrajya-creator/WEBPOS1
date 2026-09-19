@@ -770,16 +770,16 @@ export class LocalDB {
         localStorage.setItem("ij_settings", JSON.stringify(defaultSettings));
         return defaultSettings;
       }
-      // Respect restaurant preference: GST is disabled unless explicitly set and rate > 0
-      const gstEnabled = parsed.gstEnabled === true && Number(parsed.gstRate ?? parsed.gstPercentage ?? 0) > 0;
+      // GST disabled as requested by restaurant owner
+      const gstEnabled = false;
       const merged: RestaurantSettings = {
         ...defaultSettings,
         ...parsed,
-        gstEnabled,
-        gstRate: gstEnabled ? Number(parsed.gstRate ?? parsed.gstPercentage ?? 0) : 0,
-        cgstRate: gstEnabled ? Number(parsed.cgstRate ?? 0) : 0,
-        sgstRate: gstEnabled ? Number(parsed.sgstRate ?? 0) : 0,
-        gstPercentage: gstEnabled ? Number(parsed.gstPercentage ?? parsed.gstRate ?? 0) : 0,
+        gstEnabled: false,
+        gstRate: 0,
+        cgstRate: 0,
+        sgstRate: 0,
+        gstPercentage: 0,
         outlets: parsed.outlets && parsed.outlets.length > 0 ? parsed.outlets : defaultOutlets,
         termsAndConditions: parsed.termsAndConditions && parsed.termsAndConditions.length > 0 ? parsed.termsAndConditions : defaultTermsAndConditions
       };

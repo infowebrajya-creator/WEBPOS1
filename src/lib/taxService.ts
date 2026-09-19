@@ -28,19 +28,12 @@ export function getTaxSettings(settings: Partial<RestaurantSettings> | null | un
     };
   }
 
-  // GST is disabled by default unless explicitly enabled with a positive rate
-  const gstEnabled = settings.gstEnabled === true && (Number(settings.gstRate ?? settings.gstPercentage ?? 0) > 0);
-  const gstRate = gstEnabled ? (typeof settings.gstRate === "number" ? settings.gstRate : (typeof settings.gstPercentage === "number" ? settings.gstPercentage : 0)) : 0;
-  const cgstRate = gstEnabled ? (typeof settings.cgstRate === "number" ? settings.cgstRate : gstRate / 2) : 0;
-  const sgstRate = gstEnabled ? (typeof settings.sgstRate === "number" ? settings.sgstRate : gstRate / 2) : 0;
-  const gstin = settings.gstin || "";
-
   return {
-    gstEnabled,
-    gstin,
-    gstRate,
-    cgstRate,
-    sgstRate,
+    gstEnabled: false,
+    gstin: settings?.gstin || "",
+    gstRate: 0,
+    cgstRate: 0,
+    sgstRate: 0,
   };
 }
 
