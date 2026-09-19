@@ -1929,17 +1929,17 @@ export default function PosBillingPortal({
           </div>
 
           {/* Cart Items List Container */}
-          <div className="flex-grow overflow-y-auto max-h-[22vh] xl:max-h-[26vh] p-2.5 sm:p-3 space-y-2 divide-y divide-stone-100 min-h-[90px]">
+          <div className="flex-grow overflow-y-auto max-h-[38vh] xl:max-h-[46vh] 2xl:max-h-[50vh] p-3 sm:p-4 space-y-2.5 divide-y divide-stone-100 min-h-[160px]">
             {cart.map((item) => {
               const isEditing = editingItemId === item.id;
               const lineItemTotal = ((item.price * item.quantity) - (item.price * item.quantity * (item.discount / 100)));
 
               return (
-                <div key={item.id} className="pt-2 first:pt-0 flex flex-col gap-1.5">
+                <div key={item.id} className="pt-2.5 first:pt-0 flex flex-col gap-1.5">
                   <div className="flex justify-between items-start gap-1.5">
                     <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="font-bold text-stone-900 flex items-center gap-1 flex-wrap text-xs">
-                        <span className="truncate max-w-[130px] sm:max-w-[170px] xl:max-w-[140px]" title={item.name}>{item.name}</span>
+                      <div className="font-bold text-stone-900 flex items-center gap-1 flex-wrap text-xs sm:text-sm">
+                        <span className="truncate max-w-[140px] sm:max-w-[180px] xl:max-w-[160px]" title={item.name}>{item.name}</span>
                         {item.isKotSent ? (
                           <span className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[7px] font-bold px-1 py-0.2 rounded font-mono">
                             KOT SENT
@@ -1962,7 +1962,7 @@ export default function PosBillingPortal({
                         <div className="text-[8px] italic text-[#C67C4E] truncate max-w-[180px]" title={item.customization}>Notes: {item.customization}</div>
                       )}
 
-                      <div className="text-[9px] font-mono text-stone-500 whitespace-nowrap">
+                      <div className="text-[10px] font-mono text-stone-500 whitespace-nowrap">
                         ₹{item.price.toLocaleString("en-IN")} x {item.quantity}
                         {item.discount > 0 && (
                           <span className="text-green-600 font-bold ml-1">(-{item.discount}%)</span>
@@ -1975,26 +1975,26 @@ export default function PosBillingPortal({
 
                     {/* Math Result & Stepper */}
                     <div className="text-right space-y-1 flex-shrink-0">
-                      <span className="font-mono font-bold text-stone-850 block text-xs whitespace-nowrap">
+                      <span className="font-mono font-bold text-stone-850 block text-xs sm:text-sm whitespace-nowrap">
                         ₹{lineItemTotal.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                       </span>
 
                       {/* Adjust inline Quantity */}
-                      <div className="flex items-center border border-stone-200 rounded bg-stone-50 h-5 overflow-hidden select-none ml-auto">
+                      <div className="flex items-center border border-stone-200 rounded bg-stone-50 h-5.5 overflow-hidden select-none ml-auto">
                         <button
                           type="button"
                           aria-label="Decrease quantity"
                           onClick={() => handleAdjustQuantity(item.id, -1)}
-                          className="px-1.5 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold flex items-center text-xs"
+                          className="px-2 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold flex items-center text-xs"
                         >
                           -
                         </button>
-                        <span className="px-1.5 font-mono text-[10px] font-bold text-stone-900">{item.quantity}</span>
+                        <span className="px-2 font-mono text-xs font-bold text-stone-900">{item.quantity}</span>
                         <button
                           type="button"
                           aria-label="Increase quantity"
                           onClick={() => handleAdjustQuantity(item.id, 1)}
-                          className="px-1.5 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold flex items-center text-xs"
+                          className="px-2 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold flex items-center text-xs"
                         >
                           +
                         </button>
