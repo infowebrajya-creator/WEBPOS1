@@ -155,6 +155,7 @@ CREATE TABLE public.orders (
     payment_status TEXT NOT NULL DEFAULT 'Pending',
     payment_method TEXT NOT NULL DEFAULT 'Cash on Delivery',
     notes TEXT,
+    special_instructions TEXT,
     fulfillment_notes TEXT,
     kot_number TEXT,
     kot_print_status TEXT DEFAULT 'Pending',
