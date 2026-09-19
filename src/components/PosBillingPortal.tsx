@@ -866,27 +866,29 @@ export default function PosBillingPortal({
           await JSPrintManagerService.printBill(finalOrder, settings);
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
 
-          // 2. Print FINAL KOT (Master ticket containing ALL final items)
-          const finalKotData = {
-            id: `KOT-${finalOrder.id}`,
-            kotNumber: `KOT-${finalOrder.id}`,
-            kotTitle: "FINAL KOT",
-            orderId: finalOrder.id,
-            tableNumber: finalOrder.tableNumber,
-            orderType: finalOrder.orderType,
-            customerName: finalOrder.customerName,
-            phoneNumber: finalOrder.phoneNumber,
-            restaurantName: settings?.name || "KITCHEN ORDER TICKET",
-            createdAt: new Date().toISOString(),
-            items: finalOrder.items.map(i => ({
-              name: i.name,
-              quantity: i.quantity,
-              customization: i.customization || ""
-            })),
-            specialInstructions: "FINAL KOT | COMPLETE SESSION ORDER"
-          };
-          await JSPrintManagerService.printKOT(finalKotData);
-          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
+          // 2. Print FINAL KOT (Only for Takeaway / Delivery orders; for Dine-In, KOTs are sent separately)
+          if (finalOrder.orderType !== "dine-in") {
+            const finalKotData = {
+              id: `KOT-${finalOrder.id}`,
+              kotNumber: `KOT-${finalOrder.id}`,
+              kotTitle: "FINAL KOT",
+              orderId: finalOrder.id,
+              tableNumber: finalOrder.tableNumber,
+              orderType: finalOrder.orderType,
+              customerName: finalOrder.customerName,
+              phoneNumber: finalOrder.phoneNumber,
+              restaurantName: settings?.name || "KITCHEN ORDER TICKET",
+              createdAt: new Date().toISOString(),
+              items: finalOrder.items.map(i => ({
+                name: i.name,
+                quantity: i.quantity,
+                customization: i.customization || ""
+              })),
+              specialInstructions: "FINAL KOT | COMPLETE SESSION ORDER"
+            };
+            await JSPrintManagerService.printKOT(finalKotData);
+            await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
+          }
 
           setJustPrinted(true);
           setTimeout(() => setJustPrinted(false), 3000);
@@ -1122,14 +1124,24 @@ export default function PosBillingPortal({
   // Retry direct thermal print handler for notification banner (100% inline, no navigation, no alert)
   const handleRetryPrint = async (order: Order) => {
     try {
-      await JSPrintManagerService.printCombinedBillAndKOT(order, settings);
-      await LocalDB.apiUpdateOrderPrintStatus(order.id, "bill", "Printed");
-      await LocalDB.apiUpdateOrderPrintStatus(order.id, "kot", "Printed");
-      setPrintNotice({
-        type: "success",
-        message: `Bill & KOT #${order.id} printed successfully via JSPrintManager.`,
-        order
-      });
+      if (order.orderType === "dine-in") {
+        await JSPrintManagerService.printBill(order, settings);
+        await LocalDB.apiUpdateOrderPrintStatus(order.id, "bill", "Printed");
+        setPrintNotice({
+          type: "success",
+          message: `Bill #${order.id} printed successfully via JSPrintManager.`,
+          order
+        });
+      } else {
+        await JSPrintManagerService.printCombinedBillAndKOT(order, settings);
+        await LocalDB.apiUpdateOrderPrintStatus(order.id, "bill", "Printed");
+        await LocalDB.apiUpdateOrderPrintStatus(order.id, "kot", "Printed");
+        setPrintNotice({
+          type: "success",
+          message: `Bill & KOT #${order.id} printed successfully via JSPrintManager.`,
+          order
+        });
+      }
       setTimeout(() => {
         setPrintNotice(prev => prev?.order.id === order.id && prev.type === "success" ? null : prev);
       }, 5000);
