@@ -109,12 +109,7 @@ export class PhysicalThermalPrinter {
     const divider = "-".repeat(32);
     const lines: PrintableLine[] = [];
 
-    // 1. Header (Centered, bold)
-    lines.push({ text: "THE XINGS KITCHEN", align: "center", bold: true });
-    lines.push({ text: (data as any).kotTitle || "KOT", align: "center", bold: true });
-    lines.push({ text: divider, align: "center" });
-
-    // 2. Metadata Section (Left aligned)
+    // 1. Metadata Section (Left aligned)
     const rawKot = (data as any).kotNumber || (data as any).kot_number || data.id || "001";
     const kotClean = String(rawKot).replace(/KOT-?/i, "").trim() || "001";
     const kotNum = kotClean.length < 3 && /^\d+$/.test(kotClean) ? kotClean.padStart(3, "0") : kotClean;
@@ -164,27 +159,6 @@ export class PhysicalThermalPrinter {
       }
     }
     lines.push({ text: divider, align: "center" });
-
-    // 4. Order Notes
-    const rawNotes = data.specialInstructions;
-    const hasNotes = rawNotes &&
-      typeof rawNotes === "string" &&
-      rawNotes.trim() !== "" &&
-      rawNotes.trim().toLowerCase() !== "none";
-
-    if (hasNotes) {
-      lines.push({ text: "NOTE:", align: "left", bold: true });
-      const noteLines = rawNotes
-        .split(/[\r\n]+/)
-        .flatMap((l: string) => l.split(","))
-        .map((l: string) => l.trim())
-        .filter(Boolean);
-
-      for (const nl of noteLines) {
-        lines.push({ text: nl, align: "left" });
-      }
-      lines.push({ text: divider, align: "center" });
-    }
 
     return lines;
   }
@@ -1130,8 +1104,6 @@ export class PhysicalThermalPrinter {
             ` : ""}
 
             <div style="text-align: center; text-transform: uppercase;">
-              <div style="font-size: ${finalFontSize * 1.15}px; font-weight: bold; letter-spacing: 1px;">${settings.name || "WEBRAJYA POS"}</div>
-              <div style="font-size: ${finalFontSize * 1.4}px; font-weight: 900; margin: 4px 0; border: 1.5px solid ${textCol}; padding: 3px; display: inline-block; letter-spacing: 1px;">${(data as any).isAddOn ? "ADD-ON KOT" : "KITCHEN ORDER TICKET"}</div>
               <div style="font-size: ${finalFontSize * 1.1}px; font-weight: bold; margin-top: 2px;">KOT: ${kotNo}${currentCopyLabel}</div>
             </div>
 
@@ -2177,15 +2149,7 @@ export function buildKOTESCPOS(data: any, printerSettings: WRPrinterSettings): s
   const builder = new ESCPOSBuilder();
   const dividerLine = "--------------------------------\n"; // 32 characters
 
-  // 1. Header (Centered, bold)
-  builder.alignCenter().bold(true);
-  const kitchenTitle = (data.restaurantName || data.storeName || "KITCHEN ORDER TICKET").toUpperCase();
-  builder.writeText(`${kitchenTitle}\n`);
-  builder.writeText("KOT (KITCHEN COPY)\n");
-  builder.bold(false);
-  builder.writeText(dividerLine + "\n");
-
-  // 2. Metadata Section (Left aligned)
+  // 1. Metadata Section (Left aligned)
   builder.alignLeft();
 
   // KOT number and Reference Order number
@@ -2249,31 +2213,6 @@ export function buildKOTESCPOS(data: any, printerSettings: WRPrinterSettings): s
   }
 
   builder.writeText(dividerLine);
-
-  // 4. Order Notes (If no notes, do NOT print an empty NOTE section)
-  const rawNotes = data.specialInstructions || data.notes || data.orderNotes || data.order_notes;
-  const hasNotes = rawNotes &&
-    typeof rawNotes === "string" &&
-    rawNotes.trim() !== "" &&
-    rawNotes.trim().toLowerCase() !== "none";
-
-  if (hasNotes) {
-    builder.bold(true);
-    builder.writeText("\nNOTE:\n");
-    builder.bold(false);
-
-    const noteLines = rawNotes
-      .split(/[\r\n]+/)
-      .flatMap((line: string) => line.split(","))
-      .map((line: string) => line.trim())
-      .filter(Boolean);
-
-    for (const noteLine of noteLines) {
-      builder.writeText(`${noteLine}\n`);
-    }
-
-    builder.writeText("\n" + dividerLine);
-  }
 
   // Feed before cut
   const feedLines = printerSettings.feedBeforeCutKOT ?? 3;
