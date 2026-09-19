@@ -7,7 +7,7 @@ import {
   MessageCircle, UtensilsCrossed
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } from "../lib/db";
+import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings, isSameTable } from "../lib/db";
 import { MenuItem, RestaurantTable, Category, StaffMember, PermissionKey } from "../types";
 import { PhysicalThermalPrinter, getWRPrinterSettings } from "../lib/printerService";
 import { JSPrintManagerService, JSPMStatusInfo } from "../lib/jsprintmanagerService";
@@ -80,11 +80,6 @@ export default function PosBillingPortal({
   // Multi-Table Cart Memory & Customer Info state map
   const [tableCarts, setTableCarts] = useState<Record<string, CartItem[]>>({});
   const [tableCustomerInfo, setTableCustomerInfo] = useState<Record<string, { name: string; phone: string; email: string; address: string }>>({});
-
-  const isSameTable = (t1?: string, t2?: string): boolean => {
-    if (!t1 || !t2) return false;
-    return String(t1).trim().replace(/^0+/, "") === String(t2).trim().replace(/^0+/, "");
-  };
 
   const handleTableChange = (newTable: string) => {
     // 1. Save active cart and customer details for current selectedTable before switching
@@ -687,17 +682,21 @@ export default function PosBillingPortal({
       if (orderType === "dine-in" && selectedTable) {
         const dbTables = LocalDB.getTables();
         const targetStatus = (finalOrder.paymentStatus === "Paid") ? "Available" : "Occupied";
-        LocalDB.saveTables(dbTables.map(t => t.tableNumber === selectedTable ? { ...t, status: targetStatus } : t));
+        LocalDB.saveTables(dbTables.map(t => isSameTable(t.tableNumber, selectedTable) ? { ...t, status: targetStatus } : t));
 
         if (targetStatus === "Available") {
           setTableCarts(prev => {
             const next = { ...prev };
-            delete next[selectedTable];
+            Object.keys(next).forEach(k => {
+              if (isSameTable(k, selectedTable)) delete next[k];
+            });
             return next;
           });
           setTableCustomerInfo(prev => {
             const next = { ...prev };
-            delete next[selectedTable];
+            Object.keys(next).forEach(k => {
+              if (isSameTable(k, selectedTable)) delete next[k];
+            });
             return next;
           });
         }
@@ -840,10 +839,10 @@ export default function PosBillingPortal({
       const hasSentBefore = cart.some(item => item.isKotSent);
       const kotCount = (LocalDB.getKOTs()?.length || 0) + 1;
       const kotNumber = `KOT-${String(kotCount).padStart(4, "0")}`;
-      const headerTitle = isReprint 
-        ? `KOT (RE-PRINT FULL)` 
-        : hasSentBefore 
-          ? `KOT (ADD-ON ORDER)` 
+      const headerTitle = isReprint
+        ? `KOT (RE-PRINT FULL)`
+        : hasSentBefore
+          ? `KOT (ADD-ON ORDER)`
           : `KOT (INITIAL ORDER)`;
 
       const kotData = {
@@ -1167,8 +1166,8 @@ export default function PosBillingPortal({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${printNotice.type === "success"
-                ? "bg-emerald-50/90 border-emerald-300 text-emerald-950"
-                : "bg-amber-50/95 border-amber-300 text-amber-950"
+              ? "bg-emerald-50/90 border-emerald-300 text-emerald-950"
+              : "bg-amber-50/95 border-amber-300 text-amber-950"
               }`}
           >
             <div className="flex items-start gap-3">
@@ -1294,10 +1293,10 @@ export default function PosBillingPortal({
           <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-0.5">
             {tables.map(table => {
               const activeOrd = orders.find(
-                o => o.orderType === "dine-in" && 
-                     isSameTable(o.tableNumber, table.tableNumber) && 
-                     o.paymentStatus !== "Paid" && 
-                     o.orderStatus !== "Cancelled"
+                o => o.orderType === "dine-in" &&
+                  isSameTable(o.tableNumber, table.tableNumber) &&
+                  o.paymentStatus !== "Paid" &&
+                  o.orderStatus !== "Cancelled"
               );
               const hasOrder = !!activeOrd;
               const isOccupied = table.status === "Occupied" || hasOrder;
@@ -1331,11 +1330,10 @@ export default function PosBillingPortal({
                     setOrderType("dine-in");
                     handleTableChange(table.tableNumber);
                   }}
-                  className={`aspect-square p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between items-center text-center relative group ${cardBg} ${
-                    isSelected
+                  className={`aspect-square p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between items-center text-center relative group ${cardBg} ${isSelected
                       ? "ring-2 ring-[#C67C4E] border-[#C67C4E] shadow-sm scale-[1.02]"
                       : ""
-                  }`}
+                    }`}
                 >
                   {/* Top Header Row: Seat Count & Status Badge */}
                   <div className="w-full flex items-center justify-between gap-1">
@@ -1387,11 +1385,10 @@ export default function PosBillingPortal({
                   key={cat}
                   type="button"
                   onClick={() => setActiveCategory(cat)}
-                  className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[54px] ${
-                    activeCategory === cat
+                  className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[54px] ${activeCategory === cat
                       ? "bg-[#C67C4E] text-white border-[#C67C4E] shadow-2xs"
                       : "bg-white text-stone-700 border-stone-200 hover:bg-stone-50"
-                  }`}
+                    }`}
                 >
                   <span className="font-serif font-bold text-xs truncate">{cat}</span>
                   <span className={`text-[9px] font-mono ${activeCategory === cat ? "text-white/80" : "text-stone-400"}`}>
@@ -1441,11 +1438,10 @@ export default function PosBillingPortal({
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className={`px-2 py-0.5 rounded-md text-[9px] uppercase font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer border ${
-                    activeCategory === cat
+                  className={`px-2 py-0.5 rounded-md text-[9px] uppercase font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer border ${activeCategory === cat
                       ? "bg-[#C67C4E] text-white border-[#C67C4E]"
                       : "bg-stone-50 text-stone-500 border-stone-200 hover:text-stone-850 hover:bg-stone-100"
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>
@@ -1463,17 +1459,15 @@ export default function PosBillingPortal({
                   key={item.id}
                   type="button"
                   onClick={() => handleAddRegularToCart(item)}
-                  className={`p-2.5 rounded-xl border text-left transition-all hover:shadow-xs active:scale-[0.98] cursor-pointer group flex flex-col justify-between min-h-[105px] relative ${
-                    itemQty > 0
+                  className={`p-2.5 rounded-xl border text-left transition-all hover:shadow-xs active:scale-[0.98] cursor-pointer group flex flex-col justify-between min-h-[105px] relative ${itemQty > 0
                       ? "bg-amber-50/40 border-[#C67C4E] shadow-2xs ring-1 ring-[#C67C4E]/30"
                       : "bg-white border-stone-200 hover:border-[#C67C4E]"
-                  }`}
+                    }`}
                 >
                   <div className="space-y-1">
                     <div className="flex justify-between items-start gap-1">
-                      <span className={`text-[7px] px-1.5 py-0.2 rounded-full font-mono font-bold uppercase border ${
-                        item.isVeg ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-600 border-red-100"
-                      }`}>
+                      <span className={`text-[7px] px-1.5 py-0.2 rounded-full font-mono font-bold uppercase border ${item.isVeg ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-600 border-red-100"
+                        }`}>
                         {item.isVeg ? "Veg" : "Non-Veg"}
                       </span>
                       {itemQty > 0 ? (
@@ -1527,8 +1521,8 @@ export default function PosBillingPortal({
                     if (type !== "dine-in") handleTableChange("");
                   }}
                   className={`py-1 rounded-md font-bold text-[9px] tracking-wider uppercase transition-all cursor-pointer ${orderType === type
-                      ? "bg-[#C67C4E] text-white shadow-2xs"
-                      : "text-stone-500 hover:text-stone-850"
+                    ? "bg-[#C67C4E] text-white shadow-2xs"
+                    : "text-stone-500 hover:text-stone-850"
                     }`}
                 >
                   {type === "dine-in" ? "Dine-In" : type === "takeaway" ? "Takeaway" : "Delivery"}
@@ -1563,8 +1557,8 @@ export default function PosBillingPortal({
                             type="button"
                             onClick={() => handleTableChange(t.tableNumber)}
                             className={`px-2 py-0.5 text-[9px] font-bold rounded-md border cursor-pointer transition-all shrink-0 flex items-center gap-1 ${selectedTable === t.tableNumber
-                                ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
-                                : "bg-amber-50 text-amber-900 border-amber-250 hover:bg-amber-100"
+                              ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
+                              : "bg-amber-50 text-amber-900 border-amber-250 hover:bg-amber-100"
                               }`}
                           >
                             <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
@@ -2029,8 +2023,8 @@ export default function PosBillingPortal({
                     type="button"
                     onClick={() => setPosPaymentStatus("Pending")}
                     className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Pending"
-                        ? "bg-[#C67C4E] text-white shadow-xs"
-                        : "bg-stone-700 text-stone-300 hover:bg-stone-600"
+                      ? "bg-[#C67C4E] text-white shadow-xs"
+                      : "bg-stone-700 text-stone-300 hover:bg-stone-600"
                       }`}
                   >
                     Unpaid (Open Tab)
@@ -2039,8 +2033,8 @@ export default function PosBillingPortal({
                     type="button"
                     onClick={() => setPosPaymentStatus("Paid")}
                     className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Paid"
-                        ? "bg-green-600 text-white shadow-xs"
-                        : "bg-stone-700 text-stone-300 hover:bg-stone-600"
+                      ? "bg-green-600 text-white shadow-xs"
+                      : "bg-stone-700 text-stone-300 hover:bg-stone-600"
                       }`}
                   >
                     Settle Now
@@ -2073,10 +2067,10 @@ export default function PosBillingPortal({
                 onClick={handleSaveOrder}
                 title={cart.length === 0 ? "Add items to cart to print KOT" : "Print Kitchen Order Ticket (Qty & Items only - will not add to Sales/Dashboard)"}
                 className={`py-2.5 sm:py-3 font-mono font-bold uppercase tracking-wider text-[10px] sm:text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${cart.length === 0 || isPrintingKOT || isFinalizing
-                    ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
-                    : justPrintedKOT
-                      ? "bg-emerald-700 text-white shadow-md cursor-pointer border border-emerald-500"
-                      : "bg-stone-800 hover:bg-stone-700 text-amber-300 hover:text-amber-200 border border-amber-600/40 shadow-sm cursor-pointer active:scale-[0.98]"
+                  ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
+                  : justPrintedKOT
+                    ? "bg-emerald-700 text-white shadow-md cursor-pointer border border-emerald-500"
+                    : "bg-stone-800 hover:bg-stone-700 text-amber-300 hover:text-amber-200 border border-amber-600/40 shadow-sm cursor-pointer active:scale-[0.98]"
                   }`}
               >
                 {isPrintingKOT ? (
@@ -2105,10 +2099,10 @@ export default function PosBillingPortal({
                 onClick={handleFinalizeCheckout}
                 title={cart.length === 0 ? "Add items to cart to print bill" : "Finalize order, record into Sales Dashboard, and print Customer Bill"}
                 className={`py-2.5 sm:py-3 font-mono font-bold uppercase tracking-wider text-[10px] sm:text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${cart.length === 0 || isFinalizing || isPrintingKOT
-                    ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
-                    : justPrinted
-                      ? "bg-emerald-600 text-white shadow-md cursor-pointer"
-                      : "bg-gradient-to-r from-[#C67C4E] to-[#aa7c11] text-white hover:from-[#aa7c11] hover:to-[#C67C4E] shadow-md cursor-pointer active:scale-[0.98]"
+                  ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
+                  : justPrinted
+                    ? "bg-emerald-600 text-white shadow-md cursor-pointer"
+                    : "bg-gradient-to-r from-[#C67C4E] to-[#aa7c11] text-white hover:from-[#aa7c11] hover:to-[#C67C4E] shadow-md cursor-pointer active:scale-[0.98]"
                   }`}
               >
                 {isFinalizing ? (

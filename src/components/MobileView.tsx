@@ -118,6 +118,7 @@ export default function MobileView({
     window.addEventListener("storage", fetchActiveTableOrder);
     window.addEventListener("new_order", fetchActiveTableOrder);
     window.addEventListener("tables_updated", fetchActiveTableOrder);
+    window.addEventListener("payments_updated", fetchActiveTableOrder);
 
     return () => {
       window.removeEventListener("app_route_change", syncTable);
@@ -125,6 +126,7 @@ export default function MobileView({
       window.removeEventListener("storage", fetchActiveTableOrder);
       window.removeEventListener("new_order", fetchActiveTableOrder);
       window.removeEventListener("tables_updated", fetchActiveTableOrder);
+      window.removeEventListener("payments_updated", fetchActiveTableOrder);
     };
   }, [tableNumber, orderPlaced]);
 

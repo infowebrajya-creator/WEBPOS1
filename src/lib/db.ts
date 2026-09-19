@@ -26,6 +26,22 @@ function debugLog(...args: any[]) {
   }
 }
 
+export function normalizeTableNumber(num?: string | number): string {
+  if (!num && num !== 0) return "";
+  return String(num)
+    .trim()
+    .toUpperCase()
+    .replace(/^TABLE\s*#?/i, "")
+    .replace(/^T0*/i, "")
+    .replace(/^0+/, "");
+}
+
+export function isSameTable(tableA?: string | number, tableB?: string | number): boolean {
+  const normA = normalizeTableNumber(tableA);
+  const normB = normalizeTableNumber(tableB);
+  return !!normA && !!normB && normA === normB;
+}
+
 export interface OrderTimelineEvent {
   event: string;
   timestamp: string;
@@ -1026,13 +1042,13 @@ export class LocalDB {
 
   static getActiveOrderForTable(tableNumber: string): Order | undefined {
     const orders = this.getOrders();
-    const activeStatuses = ["New Order", "Accepted", "Preparing", "Ready", "Served"];
-    const targetNum = String(tableNumber || "").trim().replace(/^0+/, "");
+    if (!tableNumber) return undefined;
     return orders.find(o => 
       o.orderType === "dine-in" && 
-      String(o.tableNumber || "").trim().replace(/^0+/, "") === targetNum && 
+      isSameTable(o.tableNumber, tableNumber) && 
       o.orderStatus !== "Cancelled" &&
-      (activeStatuses.includes(o.orderStatus) || o.paymentStatus !== "Paid")
+      o.orderStatus !== "Completed" &&
+      o.paymentStatus !== "Paid"
     );
   }
 

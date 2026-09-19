@@ -4,7 +4,7 @@ import {
   Utensils, User, X, Layers, RefreshCw, Sparkles, Filter, ChevronRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Order, LocalDB } from "../lib/db";
+import { Order, LocalDB, isSameTable } from "../lib/db";
 import { RestaurantTable } from "../types";
 
 interface VisualTableManagementProps {
@@ -51,18 +51,20 @@ export default function VisualTableManagement({
   // Map active unpaid orders to their corresponding table number
   const activeOrdersMap = useMemo(() => {
     const map: Record<string, Order> = {};
-    orders.forEach(o => {
-      if (
-        o.orderType === "dine-in" && 
-        o.tableNumber && 
-        o.paymentStatus !== "Paid" && 
-        o.orderStatus !== "Cancelled"
-      ) {
-        map[o.tableNumber] = o;
+    tables.forEach(t => {
+      const activeOrd = orders.find(o =>
+        o.orderType === "dine-in" &&
+        isSameTable(o.tableNumber, t.tableNumber) &&
+        o.paymentStatus !== "Paid" &&
+        o.orderStatus !== "Cancelled" &&
+        o.orderStatus !== "Completed"
+      );
+      if (activeOrd) {
+        map[t.tableNumber] = activeOrd;
       }
     });
     return map;
-  }, [orders]);
+  }, [orders, tables]);
 
   // Filter tables by selected area tab
   const filteredTables = useMemo(() => {
