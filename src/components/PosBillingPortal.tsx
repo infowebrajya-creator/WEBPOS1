@@ -262,6 +262,7 @@ export default function PosBillingPortal({
   // Modals Toggles
   const [showManualModal, setShowManualModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [showBillPreviewModal, setShowBillPreviewModal] = useState(false);
   // Manual Item Form States
   const [manualName, setManualName] = useState("");
   const [manualCategory, setManualCategory] = useState("General");
@@ -675,6 +676,33 @@ export default function PosBillingPortal({
       },
       applyAction
     );
+  };
+
+  // Pre-print Bill Preview & Validation Trigger
+  const handleOpenBillPreview = () => {
+    if (cart.length === 0 || isFinalizing) return;
+
+    if (orderType === "dine-in") {
+      if (!selectedTable) {
+        alert("Table allocation is required for Dine-In orders. Please select a table before finalizing.");
+        return;
+      }
+    } else if (orderType === "delivery") {
+      if (!customerName.trim()) {
+        alert("Customer recipient name is required for delivery orders.");
+        return;
+      }
+      if (!customerPhone.trim() || customerPhone.replace(/\D/g, "").length < 7) {
+        alert("A valid 10-digit mobile contact number is required for delivery dispatch.");
+        return;
+      }
+      if (!customerAddress.trim()) {
+        alert("A complete delivery/shipping address is required for delivery orders.");
+        return;
+      }
+    }
+
+    setShowBillPreviewModal(true);
   };
 
   // Process and save finalized invoice with direct QZ Tray thermal printing
@@ -2195,7 +2223,7 @@ export default function PosBillingPortal({
                 type="button"
                 id="pos-print-bill-btn"
                 disabled={cart.length === 0 || isFinalizing || isPrintingKOT}
-                onClick={handleFinalizeCheckout}
+                onClick={handleOpenBillPreview}
                 title={cart.length === 0 ? "Add items to cart to print bill" : "Finalize order, record into Sales Dashboard, and print Customer Bill"}
                 className={`py-2.5 sm:py-3 font-mono font-bold uppercase tracking-wider text-[10px] sm:text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${cart.length === 0 || isFinalizing || isPrintingKOT
                   ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
@@ -2492,6 +2520,231 @@ export default function PosBillingPortal({
         orders={orders}
         settings={settings}
       />
+
+      {/* DINE-IN / POS BILL PREVIEW & CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {showBillPreviewModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBillPreviewModal(false)}
+              className="fixed inset-0 bg-[#0c0a09]/80 z-50 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="fixed inset-3 sm:inset-6 md:inset-10 max-w-2xl mx-auto bg-stone-900 text-white z-50 shadow-2xl rounded-2xl border border-stone-700/80 overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              {/* Modal Header Bar */}
+              <div className="p-3.5 bg-stone-950 border-b border-stone-800 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#C67C4E]/20 text-[#C67C4E] flex items-center justify-center font-bold">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-black text-sm tracking-wide text-white">Bill Preview & Print Confirmation</h3>
+                    <p className="text-[9px] font-mono text-stone-400">
+                      {orderType.toUpperCase()} • {orderType === "dine-in" ? `TABLE #${selectedTable}` : "COUNTER"} • REVIEW INVOICE BEFORE PRINTING
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBillPreviewModal(false)}
+                  className="p-1.5 hover:bg-stone-800 rounded-lg text-stone-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Scrollable Thermal Paper Receipt Preview Body */}
+              <div className="p-4 overflow-y-auto flex-grow bg-stone-950/60 font-mono text-stone-900 select-none">
+                <div className="max-w-sm mx-auto bg-amber-50/95 text-stone-950 p-5 rounded-xl shadow-lg border border-amber-200/80 space-y-3 font-mono text-xs relative">
+                  <div className="text-center space-y-1 pb-3 border-b border-dashed border-stone-400">
+                    <div className="font-serif font-black text-base uppercase tracking-wider text-stone-900">
+                      {settings.name || "THE XINGS KITCHEN"}
+                    </div>
+                    <div className="text-[9px] text-stone-600 font-sans">{settings.address || "Main Dining Hall, Sector 18"}</div>
+                    <div className="text-[9px] text-stone-600 font-sans">Contact: {settings.contactNumber || "+91 98765 43210"}</div>
+                    {settings.gstin && (
+                      <div className="text-[9px] font-bold text-stone-700">GSTIN: {settings.gstin}</div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 text-[10px] py-1 border-b border-dashed border-stone-400 gap-y-1">
+                    <div>
+                      <span className="text-stone-500 block">TYPE:</span>
+                      <strong className="text-stone-900 uppercase font-bold">{orderType}</strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-stone-500 block">TABLE:</span>
+                      <strong className="text-[#C67C4E] text-xs font-black">
+                        {orderType === "dine-in" ? `TABLE #${selectedTable}` : "TAKEAWAY"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-stone-500 block">GUEST:</span>
+                      <span className="font-semibold text-stone-850 truncate block max-w-[130px]">{customerName || "Walk-In Guest"}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-stone-500 block">TIME:</span>
+                      <span className="text-[9px] text-stone-700">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-12 text-[9px] font-bold text-stone-500 border-b border-stone-300 pb-1">
+                      <span className="col-span-6">ITEM</span>
+                      <span className="col-span-2 text-center">QTY</span>
+                      <span className="col-span-2 text-right">RATE</span>
+                      <span className="col-span-2 text-right">AMT</span>
+                    </div>
+
+                    {cart.map((item, idx) => {
+                      const effectivePrice = item.price - (item.price * (item.discount / 100));
+                      const itemTotal = effectivePrice * item.quantity;
+                      return (
+                        <div key={idx} className="grid grid-cols-12 text-[10px] py-0.5 border-b border-stone-200/60 items-center">
+                          <span className="col-span-6 font-semibold text-stone-900 truncate" title={item.name}>
+                            {item.name}
+                          </span>
+                          <span className="col-span-2 text-center font-bold">{item.quantity}</span>
+                          <span className="col-span-2 text-right text-stone-600">₹{effectivePrice}</span>
+                          <span className="col-span-2 text-right font-bold text-stone-950">₹{itemTotal}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="space-y-1 pt-2 border-t border-dashed border-stone-400 text-[10px]">
+                    <div className="flex justify-between text-stone-600">
+                      <span>Subtotal ({cart.length} items):</span>
+                      <span>₹{cartTotals.subtotal}</span>
+                    </div>
+                    {cartTotals.itemDiscounts > 0 && (
+                      <div className="flex justify-between text-green-700 font-semibold">
+                        <span>Item Discounts:</span>
+                        <span>-₹{cartTotals.itemDiscounts}</span>
+                      </div>
+                    )}
+                    {cartTotals.couponDiscount > 0 && (
+                      <div className="flex justify-between text-green-700 font-semibold">
+                        <span>Coupon ({appliedCoupon?.code}):</span>
+                        <span>-₹{cartTotals.couponDiscount}</span>
+                      </div>
+                    )}
+                    {cartTotals.gstEnabled && cartTotals.gst > 0 && (
+                      <div className="flex justify-between text-stone-600">
+                        <span>GST ({cartTotals.gstRate}%):</span>
+                        <span>₹{cartTotals.gst}</span>
+                      </div>
+                    )}
+                    {cartTotals.packaging > 0 && (
+                      <div className="flex justify-between text-stone-600">
+                        <span>Packaging Charge:</span>
+                        <span>₹{cartTotals.packaging}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between text-sm font-black border-t-2 border-stone-900 pt-2 text-stone-950">
+                      <span>TOTAL AMOUNT:</span>
+                      <span className="text-[#C67C4E] text-base font-black">₹{cartTotals.grandTotal}</span>
+                    </div>
+
+                    <div className="pt-1 flex justify-between items-center text-[9px] text-stone-500 font-sans">
+                      <span>SETTLEMENT STATUS:</span>
+                      <span className={`px-2 py-0.5 rounded font-bold font-mono text-[9px] uppercase ${posPaymentStatus === "Paid" ? "bg-green-100 text-green-800 border border-green-300" : "bg-amber-100 text-amber-900 border border-amber-300"}`}>
+                        {posPaymentStatus === "Paid" ? "PAID ✓" : "UNPAID (OPEN TAB)"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-center pt-3 border-t border-dashed border-stone-400 text-[8px] text-stone-500 space-y-0.5">
+                    <div>*** THANK YOU FOR DINING WITH US ***</div>
+                    <div>POWERED BY WEBRAJYA POS</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Control Action Buttons */}
+              <div className="p-3.5 bg-stone-950 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowBillPreviewModal(false)}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 font-mono font-bold text-[10px] uppercase rounded-xl transition-all cursor-pointer border border-stone-700"
+                >
+                  ✏️ Cancel & Edit Items
+                </button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {setShowBillPrint && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBillPreviewModal(false);
+                        const dummyOrder: Order = {
+                          id: `PREVIEW-${Date.now()}`,
+                          customerName: customerName.trim() || "Walk-In Guest",
+                          phoneNumber: customerPhone || "",
+                          email: customerEmail || "",
+                          orderType: orderType,
+                          tableNumber: selectedTable,
+                          items: cart.map(i => ({
+                            menuItemId: i.id,
+                            name: i.name,
+                            price: i.price,
+                            quantity: i.quantity,
+                            customization: i.customization
+                          })),
+                          subtotal: cartTotals.subtotal,
+                          gst: cartTotals.gst,
+                          packagingCharge: cartTotals.packaging,
+                          discountAmount: cartTotals.couponDiscount,
+                          grandTotal: cartTotals.grandTotal,
+                          paymentStatus: posPaymentStatus,
+                          orderStatus: "New Order",
+                          createdAt: new Date().toISOString()
+                        };
+                        setShowBillPrint(dummyOrder);
+                      }}
+                      className="flex-1 sm:flex-none px-3 py-2.5 bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-600/40 font-mono font-bold text-[10px] uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Print Workstation</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={isFinalizing}
+                    onClick={async () => {
+                      setShowBillPreviewModal(false);
+                      await handleFinalizeCheckout();
+                    }}
+                    className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 hover:from-emerald-500 hover:to-emerald-400 text-white font-mono font-bold text-[11px] uppercase rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-98"
+                  >
+                    {isFinalizing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Printing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="w-4 h-4" />
+                        <span>Confirm & Print Bill</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
