@@ -299,7 +299,7 @@ export class PhysicalThermalPrinter {
         lines.push({ text: "GST".padStart(32) + fmt(gstVal).padStart(8), align: "left" });
       }
       lines.push({ text: divider, align: "center" });
-      lines.push({ text: "GRAND TOTAL".padStart(28) + (" ₹" + fmt(grandTotalVal)).padStart(12), align: "left", bold: true });
+      lines.push({ text: "GRAND TOTAL".padStart(26) + (" Rs." + fmt(grandTotalVal)).padStart(14), align: "left", bold: true });
     } else {
       lines.push({ text: "SUBTOTAL".padStart(24) + fmt(subtotalVal).padStart(8), align: "left" });
       if (discountVal > 0) {
@@ -312,8 +312,14 @@ export class PhysicalThermalPrinter {
         lines.push({ text: "GST".padStart(24) + fmt(gstVal).padStart(8), align: "left" });
       }
       lines.push({ text: divider, align: "center" });
-      lines.push({ text: "GRAND TOTAL".padStart(22) + (" ₹" + fmt(grandTotalVal)).padStart(10), align: "left", bold: true });
+      lines.push({ text: "GRAND TOTAL".padStart(20) + (" Rs." + fmt(grandTotalVal)).padStart(12), align: "left", bold: true });
     }
+    lines.push({ text: divider, align: "center" });
+
+    // Payment Method & Status Summary Line
+    const payMethod = String(data.paymentMethod || data.payment_method || "CASH").toUpperCase();
+    const payStatus = String(data.paymentStatus || "PAID").toUpperCase();
+    lines.push({ text: `PAYMENT MODE: ${payMethod} (${payStatus})`, align: "center", bold: true });
     lines.push({ text: divider, align: "center" });
 
     // 5. Clean Footer
@@ -2104,7 +2110,7 @@ export function buildBillESCPOS(data: any, settings: any, printerSettings: WRPri
     builder.writeText(dividerLine);
 
     builder.bold(true);
-    const grandTotalRow = "GRAND TOTAL".padStart(28) + (" ₹" + fmt(grandTotalVal)).padStart(12);
+    const grandTotalRow = "GRAND TOTAL".padStart(26) + (" Rs." + fmt(grandTotalVal)).padStart(14);
     builder.writeText(grandTotalRow + "\n");
     builder.bold(false);
   } else {
@@ -2130,11 +2136,20 @@ export function buildBillESCPOS(data: any, settings: any, printerSettings: WRPri
     builder.writeText(dividerLine);
 
     builder.bold(true);
-    const grandTotalRow = "GRAND TOTAL".padStart(22) + (" ₹" + fmt(grandTotalVal)).padStart(10);
+    const grandTotalRow = "GRAND TOTAL".padStart(20) + (" Rs." + fmt(grandTotalVal)).padStart(12);
     builder.writeText(grandTotalRow + "\n");
     builder.bold(false);
   }
 
+  builder.writeText(dividerLine);
+
+  // Payment Mode & Payment Status
+  const payMethod = String(data.paymentMethod || data.payment_method || "CASH").toUpperCase();
+  const payStatus = String(data.paymentStatus || "PAID").toUpperCase();
+  builder.bold(true);
+  builder.alignCenter();
+  builder.writeText(`PAYMENT MODE: ${payMethod} (${payStatus})\n`);
+  builder.bold(false);
   builder.writeText(dividerLine);
 
   // 5. Footer (Thank You! Visit Again)
