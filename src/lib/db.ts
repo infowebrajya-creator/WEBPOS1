@@ -993,43 +993,9 @@ export class LocalDB {
         });
       }
 
-      // Preserve any local unsynced offline orders that exist in local disk but not yet in Supabase response
-      const localOrders = this.getOrders();
-      const merged: Order[] = [...mapped];
-      for (const local of localOrders) {
-        if (local && local.id && !seenIds.has(local.id)) {
-          seenIds.add(local.id);
-          merged.unshift(local);
-          // Try background sync
-          const sanitizedPayload: any = {
-            id: local.id,
-            customer_name: local.customerName,
-            phone_number: local.phoneNumber,
-            email: local.email,
-            order_type: local.orderType,
-            table_number: local.tableNumber || null,
-            address: local.address || null,
-            items: local.items,
-            subtotal: Number(local.subtotal || 0),
-            gst: Number(local.gst || 0),
-            packaging_charge: Number(local.packagingCharge || 0),
-            discount_amount: Number(local.discountAmount || 0),
-            applied_coupon: local.appliedCoupon || null,
-            grand_total: Number(local.grandTotal || 0),
-            payment_status: local.paymentStatus || "Pending",
-            order_status: local.orderStatus || "New Order",
-            created_at: local.createdAt,
-            payment_method: local.paymentMethod || "Cash on Delivery",
-            special_instructions: `[SOURCE:${local.source || (local.billedBy?.includes("POS") ? "POS" : "QR")}]`
-          };
-          try {
-            await supabase.from("orders").insert(sanitizedPayload);
-          } catch (_) {}
-        }
-      }
-
-      this.saveOrders(merged);
-      return merged;
+      // Synchronize local disk cache to match remote Supabase database
+      this.saveOrders(mapped);
+      return mapped;
     } catch (err: any) {
       console.warn("[ORDER MANAGEMENT FETCH] Supabase transport error:", err);
       this.addAuditLog(

@@ -183,6 +183,7 @@ CREATE TABLE public.order_items (
     menu_item_id TEXT REFERENCES public.menu_items(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
+    printed_kot_quantity INTEGER DEFAULT 0,
     price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     notes TEXT,
     customization TEXT,
