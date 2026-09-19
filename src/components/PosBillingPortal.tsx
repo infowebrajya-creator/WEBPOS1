@@ -73,6 +73,7 @@ export default function PosBillingPortal({
   const [orderType, setOrderType] = useState<"dine-in" | "takeaway" | "delivery">("takeaway");
   const [selectedTable, setSelectedTable] = useState("");
   const [posPaymentStatus, setPosPaymentStatus] = useState<"Paid" | "Pending">("Paid");
+  const [posPaymentMethod, setPosPaymentMethod] = useState<"UPI" | "Cash" | "Card">("UPI");
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -794,7 +795,7 @@ export default function PosBillingPortal({
         grandTotal: cartTotals.grandTotal,
         paymentStatus: orderType === "dine-in" ? posPaymentStatus : "Paid",
         orderStatus: "New Order",
-        paymentMethod: orderType === "delivery" ? "Cash On Delivery" : "POS Counter Terminal",
+        paymentMethod: orderType === "delivery" && posPaymentMethod === "Cash" ? "Cash On Delivery" : posPaymentMethod,
         // Include POS employee tracker metadata
         kotPrintStatus: "Pending",
         billPrintStatus: "Pending",
@@ -1078,7 +1079,7 @@ export default function PosBillingPortal({
           grandTotal: cartTotals.grandTotal,
           paymentStatus: "Pending",
           orderStatus: "New Order",
-          paymentMethod: "POS Counter Terminal",
+          paymentMethod: posPaymentMethod,
           source: "POS"
         });
 
@@ -2196,48 +2197,82 @@ export default function PosBillingPortal({
               </div>
             </div>
 
-            {/* Order-type aware settlement info */}
-            {orderType === "dine-in" ? (
-              <div className="flex justify-between items-center bg-stone-800 p-1.5 rounded-lg border border-stone-700 text-[8px] gap-1.5">
-                <span className="font-bold text-stone-300 uppercase tracking-wider">SETTLEMENT:</span>
-                <div className="flex gap-1">
+            {/* Settlement & Payment Method Selector Tabs */}
+            <div className="bg-stone-900/90 p-2 rounded-xl border border-stone-800 flex flex-col gap-1.5 shadow-sm">
+              <div className="flex items-center justify-between gap-1.5">
+                <span className="font-bold text-amber-400 uppercase tracking-wider text-[9px] sm:text-[10px] font-mono flex items-center gap-1 whitespace-nowrap">
+                  <span>SETTLEMENT:</span>
+                </span>
+
+                {/* 2 Main Payment Mode Tabs (UPI & Cash) + Card */}
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => setPosPaymentStatus("Pending")}
-                    className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Pending"
-                      ? "bg-[#C67C4E] text-white shadow-xs"
-                      : "bg-stone-700 text-stone-300 hover:bg-stone-600"
+                    onClick={() => setPosPaymentMethod("UPI")}
+                    className={`px-2.5 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap border ${posPaymentMethod === "UPI"
+                      ? "bg-purple-600 text-white border-purple-400 shadow-sm font-mono"
+                      : "bg-stone-800 text-stone-300 hover:bg-stone-700 border-stone-700"
                       }`}
                   >
-                    Unpaid (Open Tab)
+                    <span>📱</span>
+                    <span>1. UPI</span>
                   </button>
+
                   <button
                     type="button"
-                    onClick={() => setPosPaymentStatus("Paid")}
-                    className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Paid"
-                      ? "bg-green-600 text-white shadow-xs"
-                      : "bg-stone-700 text-stone-300 hover:bg-stone-600"
+                    onClick={() => setPosPaymentMethod("Cash")}
+                    className={`px-2.5 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap border ${posPaymentMethod === "Cash"
+                      ? "bg-emerald-600 text-white border-emerald-400 shadow-sm font-mono"
+                      : "bg-stone-800 text-stone-300 hover:bg-stone-700 border-stone-700"
                       }`}
                   >
-                    Settle Now
+                    <span>💵</span>
+                    <span>2. CASH</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPosPaymentMethod("Card")}
+                    className={`px-2 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap border ${posPaymentMethod === "Card"
+                      ? "bg-blue-600 text-white border-blue-400 shadow-sm font-mono"
+                      : "bg-stone-800 text-stone-300 hover:bg-stone-700 border-stone-700"
+                      }`}
+                  >
+                    <span>💳</span>
+                    <span>CARD</span>
                   </button>
                 </div>
               </div>
-            ) : orderType === "delivery" ? (
-              <div className="flex justify-between items-center bg-purple-950/80 p-1.5 rounded-lg border border-purple-800/80 text-[8px] gap-1.5">
-                <span className="font-bold text-purple-300 uppercase tracking-wider">SETTLEMENT:</span>
-                <span className="font-mono font-bold text-purple-200 uppercase text-[9px] flex items-center gap-1">
-                  <span>🛵 Cash On Delivery / Rider Collect</span>
-                </span>
-              </div>
-            ) : (
-              <div className="flex justify-between items-center bg-amber-950/80 p-1.5 rounded-lg border border-amber-800/80 text-[8px] gap-1.5">
-                <span className="font-bold text-amber-300 uppercase tracking-wider">SETTLEMENT:</span>
-                <span className="font-mono font-bold text-amber-200 uppercase text-[9px] flex items-center gap-1">
-                  <span>🥡 Instant Counter Paid</span>
-                </span>
-              </div>
-            )}
+
+              {/* Dine-in tab status option if dine-in mode */}
+              {orderType === "dine-in" && (
+                <div className="flex justify-between items-center pt-1 border-t border-stone-800/80 text-[9px]">
+                  <span className="text-stone-400 font-medium">Table Tab:</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPosPaymentStatus("Pending")}
+                      className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Pending"
+                        ? "bg-[#C67C4E] text-white shadow-xs"
+                        : "bg-stone-800 text-stone-400 hover:bg-stone-700 border border-stone-700"
+                        }`}
+                    >
+                      Unpaid (Open Tab)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPosPaymentStatus("Paid")}
+                      className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Paid"
+                        ? "bg-green-600 text-white shadow-xs"
+                        : "bg-stone-800 text-stone-400 hover:bg-stone-700 border border-stone-700"
+                        }`}
+                    >
+                      Settle Now
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Final checkout dispatch triggers: PRINT KOT & PRINT BILL */}
             <div className="grid grid-cols-2 gap-2 w-full pt-1">
