@@ -108,6 +108,9 @@ export interface Order {
     card: number;
     changeReturned?: number;
   };
+  pax?: number;
+  orderInstructions?: string;
+  staffName?: string;
 
   // Lifecycle Timestamps
   confirmedAt?: string;

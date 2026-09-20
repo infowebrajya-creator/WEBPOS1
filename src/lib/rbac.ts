@@ -14,7 +14,36 @@ export const DEFAULT_USER: UserProfile = {
   createdAt: "2024-01-01T08:00:00Z"
 };
 
-export const DEFAULT_STAFF = [DEFAULT_USER];
+export const DEFAULT_STAFF: UserProfile[] = [
+  DEFAULT_USER,
+  {
+    id: "USER-002",
+    name: "Satendra",
+    email: "satendra@webrajya.com",
+    phone: "",
+    role: "Manager",
+    status: "Active",
+    createdAt: "2024-01-01T08:00:00Z"
+  },
+  {
+    id: "USER-003",
+    name: "Ramesh (Waiter)",
+    email: "ramesh@webrajya.com",
+    phone: "",
+    role: "Staff",
+    status: "Active",
+    createdAt: "2024-01-01T08:00:00Z"
+  },
+  {
+    id: "USER-004",
+    name: "Suresh (Waiter)",
+    email: "suresh@webrajya.com",
+    phone: "",
+    role: "Staff",
+    status: "Active",
+    createdAt: "2024-01-01T08:00:00Z"
+  }
+];
 
 // -------------------------------------------------------------
 // LIGHTWEIGHT USER AUTH & POS PERMISSION HELPER
@@ -36,7 +65,11 @@ export class AuthService {
   }
 
   static getStaff(): UserProfile[] {
-    return [DEFAULT_USER];
+    return DEFAULT_STAFF;
+  }
+
+  static getStaffMembers(): UserProfile[] {
+    return DEFAULT_STAFF;
   }
 
   /**

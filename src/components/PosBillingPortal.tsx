@@ -4,7 +4,7 @@ import {
   Trash2, Edit3, ClipboardList, CheckCircle, FileText, ShoppingCart,
   Percent, ArrowRight, User, Phone, MapPin, Sparkles, Hash, Layers,
   Printer, AlertCircle, RefreshCw, X, ArrowRightLeft, Receipt, Loader2, CheckCircle2,
-  MessageCircle, UtensilsCrossed
+  MessageCircle, UtensilsCrossed, Users, MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings, isSameTable } from "../lib/db";
@@ -77,6 +77,36 @@ export default function PosBillingPortal({
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
+
+  // Additional POS Session Metadata (Staff, PAX, Order Instructions)
+  const [staffList, setStaffList] = useState<StaffMember[]>(() => RBACService.getStaffMembers());
+  const [selectedStaffName, setSelectedStaffName] = useState<string>(() => activeStaff.name || "SATENDRA");
+  const [paxCount, setPaxCount] = useState<number>(1);
+  const [orderInstructions, setOrderInstructions] = useState<string>("");
+
+  // Group cart items into printed KOT batches and new unprinted items
+  const groupedKotItems = useMemo(() => {
+    const printedBatches: Record<string, CartItem[]> = {};
+    const unprintedItems: CartItem[] = [];
+
+    cart.forEach(item => {
+      if (item.isKotSent && item.kotNumber) {
+        if (!printedBatches[item.kotNumber]) {
+          printedBatches[item.kotNumber] = [];
+        }
+        printedBatches[item.kotNumber].push(item);
+      } else {
+        unprintedItems.push(item);
+      }
+    });
+
+    return { printedBatches, unprintedItems };
+  }, [cart]);
+
+  // Total Quantity of all items in cart
+  const totalCartQuantity = useMemo(() => {
+    return cart.reduce((sum, item) => sum + item.quantity, 0);
+  }, [cart]);
 
   // Multi-Table Cart Memory & Customer Info state map
   const [tableCarts, setTableCarts] = useState<Record<string, CartItem[]>>({});
@@ -618,6 +648,8 @@ export default function PosBillingPortal({
           setCustomerPhone("");
           setCustomerEmail("");
           setCustomerAddress("");
+          setPaxCount(1);
+          setOrderInstructions("");
           setAppliedCoupon(null);
           setCouponCode("");
 
@@ -786,6 +818,9 @@ export default function PosBillingPortal({
         orderType: orderType,
         tableNumber: orderType === "dine-in" ? selectedTable : undefined,
         address: orderType === "delivery" ? customerAddress.trim() : undefined,
+        pax: paxCount,
+        orderInstructions: orderInstructions.trim() || undefined,
+        staffName: selectedStaffName || undefined,
         items: finalOrderItems,
         subtotal: cartTotals.subtotal - cartTotals.itemDiscounts,
         gst: cartTotals.gst,
@@ -849,6 +884,8 @@ export default function PosBillingPortal({
       setCustomerPhone("");
       setCustomerEmail("");
       setCustomerAddress("");
+      setPaxCount(1);
+      setOrderInstructions("");
       setOrderType("takeaway");
       setSelectedTable("");
       setAppliedCoupon(null);
@@ -1721,35 +1758,11 @@ export default function PosBillingPortal({
           </div>
         </div>
 
-        {/* COLUMN 3: RIGHT ACTIVE BILLING CART & SETTLEMENT PANEL (Eatspace Style) */}
+        {/* COLUMN 3: RIGHT ACTIVE BILLING CART & SETTLEMENT PANEL */}
         <div className="lg:col-span-4 xl:col-span-4 2xl:col-span-4 bg-white border border-stone-200 rounded-xl sm:rounded-2xl shadow-xs overflow-hidden flex flex-col lg:sticky lg:top-2 self-start max-h-[calc(100vh-125px)]">
 
-          {/* Header: Customer Details */}
-          <div className="p-2.5 sm:p-3 bg-stone-50 border-b border-stone-200 space-y-2 flex-shrink-0">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-mono font-bold text-stone-450 uppercase tracking-widest flex items-center gap-1">
-                <ShoppingCart className="w-3.5 h-3.5 text-[#C67C4E]" />
-                Active Billing Cart
-              </span>
-              <div className="flex items-center gap-1.5">
-                {cart.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleClearCart}
-                    title="Clear all items from this bill / cart"
-                    className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md font-mono font-bold text-[9px] uppercase cursor-pointer flex items-center gap-1 transition-all active:scale-95 shadow-2xs"
-                  >
-                    <Trash2 className="w-3 h-3 text-red-500" />
-                    <span>CLEAR BILL</span>
-                  </button>
-                )}
-                <span className="text-stone-900 font-bold font-mono text-[11px] bg-white px-2 py-0.5 rounded-md border border-stone-200">
-                  {cart.length} {cart.length === 1 ? "Item" : "Items"}
-                </span>
-              </div>
-            </div>
-
-            {/* Order Type Toggle Selector */}
+          {/* Top Order Type Toggle Bar */}
+          <div className="p-2 bg-stone-100 border-b border-stone-200 flex-shrink-0">
             <div className="grid grid-cols-3 gap-1 bg-stone-200 p-0.5 rounded-lg border border-stone-250">
               {(["dine-in", "takeaway", "delivery"] as const).map((type) => (
                 <button
@@ -1768,715 +1781,510 @@ export default function PosBillingPortal({
                 </button>
               ))}
             </div>
-
-            {/* Dynamic Information Inputs */}
-            <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-              {/* 1. DINE-IN Specific Fields */}
-              {orderType === "dine-in" && (
-                <>
-                  <div className="col-span-2 space-y-1">
-                    <div className="flex justify-between items-center">
-                      <label className="font-bold text-stone-500 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                        <span>ALLOCATE TABLE *</span>
-                      </label>
-                      <div className="flex items-center gap-2">
-                        {selectedTable && (
-                          <span className="text-[#aa7c11] font-mono font-bold text-[8px]">Table #{selectedTable} Selected</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Quick Active Occupied Tables Switcher Pills */}
-                    {tables.some(t => t.status === "Occupied") && (
-                      <div className="flex items-center gap-1 overflow-x-auto pb-0.5 pt-0.5 no-scrollbar">
-                        <span className="text-[8px] font-bold text-amber-700 uppercase tracking-wider shrink-0">Active Tabs:</span>
-                        {tables.filter(t => t.status === "Occupied").map(t => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => handleTableChange(t.tableNumber)}
-                            className={`px-2 py-0.5 text-[9px] font-bold rounded-md border cursor-pointer transition-all shrink-0 flex items-center gap-1 ${selectedTable === t.tableNumber
-                              ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
-                              : "bg-amber-50 text-amber-900 border-amber-250 hover:bg-amber-100"
-                              }`}
-                          >
-                            <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-                            Table #{t.tableNumber}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <select
-                      value={selectedTable}
-                      onChange={(e) => handleTableChange(e.target.value)}
-                      className="w-full bg-white border border-stone-300 rounded-lg py-1 px-2 text-stone-850 font-medium focus:outline-none focus:border-[#C67C4E] text-[10px] shadow-2xs"
-                    >
-                      <option value="">-- Choose Table Seating --</option>
-                      {tables.map(table => {
-                        const isOccupied = table.status === "Occupied";
-                        const hasSavedDraft = !!(tableCarts[table.tableNumber] && tableCarts[table.tableNumber].length > 0);
-                        return (
-                          <option key={table.id} value={table.tableNumber}>
-                            Table #{table.tableNumber} ({table.capacity} pax - {table.seatingArea}) {isOccupied ? "• [Occupied]" : hasSavedDraft ? "• [Draft Order]" : "• [Available]"}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    {activeOrderForSelectedTable && (
-                      <div className="mt-1 p-1.5 bg-amber-50 border border-amber-250 text-amber-900 rounded-lg flex items-center justify-between gap-1.5 font-medium text-[9px]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full flex-shrink-0 animate-pulse"></span>
-                          <span className="truncate font-semibold">Active: ₹{activeOrderForSelectedTable.grandTotal} {activeOrderForSelectedTable.paidAmount ? `(Paid: ₹${activeOrderForSelectedTable.paidAmount})` : ""}</span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSplitTargetOrder(activeOrderForSelectedTable);
-                              setShowSplitModal(true);
-                            }}
-                            className="px-2 py-0.5 bg-[#d4af37]/20 hover:bg-[#d4af37]/30 text-[#886915] font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs text-[9px]"
-                            title="Split Bill & Settle Payments"
-                          >
-                            <Receipt className="w-2.5 h-2.5" />
-                            <span>Split / Pay</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTransferSourceTable(selectedTable);
-                              setTransferSourceOrder(activeOrderForSelectedTable);
-                              setShowTransferModal(true);
-                            }}
-                            className="px-2 py-0.5 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs text-[9px]"
-                            title="Transfer this order to another table"
-                          >
-                            <ArrowRightLeft className="w-2.5 h-2.5" />
-                            <span>Transfer</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <label className="font-bold text-stone-450 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                      <User className="w-2.5 h-2.5 text-stone-400" /> GUEST NAME
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={60}
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Walk-in Guest"
-                      className="w-full bg-white border border-stone-200 rounded-lg py-1 px-2 focus:outline-none focus:border-[#C67C4E] text-[10px]"
-                    />
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <label className="font-bold text-stone-450 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                      <Phone className="w-2.5 h-2.5 text-stone-400" /> MOBILE CONTACT
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value.replace(/[^\d+ -]/g, ""))}
-                      placeholder="9123456789 (Optional)"
-                      className="w-full bg-white border border-stone-200 rounded-lg py-1 px-2 focus:outline-none focus:border-[#C67C4E] text-[10px]"
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* 2. TAKEAWAY Specific Fields */}
-              {orderType === "takeaway" && (
-                <>
-                  <div className="col-span-2 bg-amber-50/80 border border-amber-250 rounded-lg p-2 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">🥡</span>
-                      <div>
-                        <span className="font-bold text-[9px] text-amber-950 block uppercase font-mono tracking-wider">
-                          TAKEAWAY COUNTER PICKUP
-                        </span>
-                        <span className="text-[8px] text-amber-700 block">
-                          Direct counter dispatch • No packaging charge (₹0) • No table assigned
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[8px] font-mono font-bold bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded uppercase shrink-0">
-                      Counter
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <label className="font-bold text-stone-500 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                      <User className="w-2.5 h-2.5 text-stone-400" /> CUSTOMER NAME
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={60}
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Takeaway Guest"
-                      className="w-full bg-white border border-stone-200 rounded-lg py-1 px-2 focus:outline-none focus:border-[#C67C4E] text-[10px]"
-                    />
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <label className="font-bold text-stone-500 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                      <Phone className="w-2.5 h-2.5 text-stone-400" /> MOBILE CONTACT
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value.replace(/[^\d+ -]/g, ""))}
-                      placeholder="9123456789 (Optional)"
-                      className="w-full bg-white border border-stone-200 rounded-lg py-1 px-2 focus:outline-none focus:border-[#C67C4E] text-[10px]"
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* 3. DELIVERY Specific Fields */}
-              {orderType === "delivery" && (
-                <>
-                  <div className="col-span-2 bg-purple-50/80 border border-purple-250 rounded-lg p-2 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">🛵</span>
-                      <div>
-                        <span className="font-bold text-[9px] text-purple-950 block uppercase font-mono tracking-wider">
-                          DOORSTEP DELIVERY DISPATCH
-                        </span>
-                        <span className="text-[8px] text-purple-700 block">
-                          Out for delivery by rider • Packaging included (+₹25) • No table assigned
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[8px] font-mono font-bold bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded uppercase shrink-0">
-                      Delivery
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <label className="font-bold text-purple-900 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                      <User className="w-2.5 h-2.5 text-purple-600" /> CUSTOMER NAME *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={60}
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Customer Full Name"
-                      className="w-full bg-white border border-purple-200 rounded-lg py-1 px-2 focus:outline-none focus:border-purple-600 text-[10px]"
-                    />
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <label className="font-bold text-purple-900 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                      <Phone className="w-2.5 h-2.5 text-purple-600" /> MOBILE CONTACT *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={15}
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value.replace(/[^\d+ -]/g, ""))}
-                      placeholder="10-digit Phone Number"
-                      className="w-full bg-white border border-purple-200 rounded-lg py-1 px-2 focus:outline-none focus:border-purple-600 text-[10px]"
-                    />
-                  </div>
-
-                  <div className="col-span-2 space-y-0.5">
-                    <label className="font-bold text-purple-900 uppercase tracking-wider text-[8px] flex items-center gap-1">
-                      <MapPin className="w-2.5 h-2.5 text-purple-600" /> SHIPPING / DELIVERY ADDRESS *
-                    </label>
-                    <textarea
-                      rows={2}
-                      required
-                      maxLength={250}
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                      placeholder="Flat/House No, Building, Street, Landmark, Pincode..."
-                      className="w-full bg-white border border-purple-200 rounded-lg p-1.5 focus:outline-none focus:border-purple-600 text-[10px] resize-none"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
           </div>
 
-          {/* Cart Items List Container */}
-          <div className="flex-grow overflow-y-auto max-h-[38vh] xl:max-h-[46vh] 2xl:max-h-[50vh] p-3 sm:p-4 space-y-2.5 divide-y divide-stone-100 min-h-[160px]">
-            {cart.map((item) => {
-              const isEditing = editingItemId === item.id;
-              const lineItemTotal = ((item.price * item.quantity) - (item.price * item.quantity * (item.discount / 100)));
+          {/* TOP SESSION HEADER GRID (5 Info Boxes) */}
+          <div className="p-2.5 bg-stone-50 border-b border-stone-200 space-y-2 flex-shrink-0">
+            <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+              {/* Box 1: Table No. */}
+              <div className="bg-white p-1.5 rounded-lg border border-stone-200 shadow-2xs flex flex-col justify-between min-h-[46px]">
+                <span className="text-[8px] font-bold text-stone-400 uppercase tracking-wider block">TABLE NO.</span>
+                {orderType === "dine-in" ? (
+                  <select
+                    value={selectedTable}
+                    onChange={(e) => handleTableChange(e.target.value)}
+                    className="w-full bg-transparent font-bold font-mono text-stone-900 text-[11px] focus:outline-none cursor-pointer py-0.5 truncate"
+                  >
+                    <option value="">Choose Table</option>
+                    {tables.map(table => (
+                      <option key={table.id} value={table.tableNumber}>
+                        #{table.tableNumber} {table.status === "Occupied" ? "• Occupied" : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="font-bold font-mono text-stone-700 text-[11px] py-0.5">Counter</span>
+                )}
+              </div>
 
-              return (
-                <div key={item.id} className="pt-2.5 first:pt-0 flex flex-col gap-1.5">
-                  <div className="flex justify-between items-start gap-1.5">
-                    <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="font-bold text-stone-900 flex items-center gap-1 flex-wrap text-xs sm:text-sm">
-                        <span className="truncate max-w-[140px] sm:max-w-[180px] xl:max-w-[160px]" title={item.name}>{item.name}</span>
-                        {item.isKotSent ? (
-                          <span className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[7px] font-bold px-1 py-0.2 rounded font-mono">
-                            KOT SENT
-                          </span>
-                        ) : (
-                          <span className="bg-amber-50 border border-amber-200 text-amber-800 text-[7px] font-bold px-1 py-0.2 rounded font-mono animate-pulse">
-                            NEW
-                          </span>
-                        )}
-                        {item.isManual && (
-                          <span className="bg-amber-50 border border-amber-200 text-amber-800 text-[7px] font-bold px-1 py-0.2 rounded font-mono">
-                            MANUAL
-                          </span>
-                        )}
-                      </div>
-                      {item.hsnCode && (
-                        <div className="text-[8px] font-mono text-stone-400">HSN: {item.hsnCode}</div>
-                      )}
-                      {item.customization && (
-                        <div className="text-[8px] italic text-[#C67C4E] truncate max-w-[180px]" title={item.customization}>Notes: {item.customization}</div>
-                      )}
+              {/* Box 2: Invc / Token # */}
+              <div className="bg-white p-1.5 rounded-lg border border-stone-200 shadow-2xs flex flex-col justify-between min-h-[46px]">
+                <span className="text-[8px] font-bold text-stone-400 uppercase tracking-wider block">INVC / TOKEN #</span>
+                <span className="font-bold font-mono text-amber-700 text-[11px] truncate py-0.5">
+                  {activeOrderForSelectedTable ? `#${activeOrderForSelectedTable.id.slice(-6)}` : "Auto-Gen"}
+                </span>
+              </div>
 
-                      <div className="text-[10px] font-mono text-stone-500 whitespace-nowrap">
-                        ₹{item.price.toLocaleString("en-IN")} x {item.quantity}
-                        {item.discount > 0 && (
-                          <span className="text-green-600 font-bold ml-1">(-{item.discount}%)</span>
-                        )}
-                        {settings.gstEnabled && item.gstRate > 0 && (
-                          <span className="text-stone-400 ml-1">| GST: {item.gstRate}%</span>
-                        )}
-                      </div>
-                    </div>
+              {/* Box 3: Select Staff */}
+              <div className="bg-white p-1.5 rounded-lg border border-stone-200 shadow-2xs flex flex-col justify-between min-h-[46px]">
+                <span className="text-[8px] font-bold text-stone-400 uppercase tracking-wider block">SELECT STAFF</span>
+                <select
+                  value={selectedStaffName}
+                  onChange={(e) => setSelectedStaffName(e.target.value)}
+                  className="w-full bg-transparent font-semibold text-stone-900 text-[10px] focus:outline-none cursor-pointer py-0.5 truncate"
+                >
+                  <option value="">Staff</option>
+                  {staffList.map(s => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-                    {/* Math Result & Stepper */}
-                    <div className="text-right space-y-1 flex-shrink-0">
-                      <span className="font-mono font-bold text-stone-850 block text-xs sm:text-sm whitespace-nowrap">
-                        ₹{lineItemTotal.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                      </span>
-
-                      {/* Adjust inline Quantity */}
-                      <div className="flex items-center border border-stone-200 rounded bg-stone-50 h-5.5 overflow-hidden select-none ml-auto">
-                        <button
-                          type="button"
-                          aria-label="Decrease quantity"
-                          onClick={() => handleAdjustQuantity(item.id, -1)}
-                          className="px-2 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold flex items-center text-xs"
-                        >
-                          -
-                        </button>
-                        <span className="px-2 font-mono text-xs font-bold text-stone-900">{item.quantity}</span>
-                        <button
-                          type="button"
-                          aria-label="Increase quantity"
-                          onClick={() => handleAdjustQuantity(item.id, 1)}
-                          className="px-2 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold flex items-center text-xs"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Editor Trigger Row & Quick Action elements */}
-                  <div className="flex items-center justify-between gap-1">
-                    {isEditing ? (
-                      <div className="flex gap-1.5 items-center bg-stone-50 p-1.5 rounded-lg border border-stone-200 w-full">
-                        <div className="space-y-0.5 flex-1">
-                          <span className="text-[7px] font-bold text-stone-400 block uppercase">PRICE (₹)</span>
-                          <input
-                            type="number"
-                            value={editPriceVal}
-                            onChange={(e) => setEditPriceVal(e.target.value)}
-                            placeholder={item.price.toString()}
-                            className="w-full bg-white border border-stone-200 rounded px-1.5 py-0.5 text-[9px]"
-                          />
-                        </div>
-
-                        <div className="space-y-0.5 flex-1">
-                          <span className="text-[7px] font-bold text-stone-400 block uppercase">DISC (%)</span>
-                          <input
-                            type="number"
-                            value={editDiscountVal}
-                            onChange={(e) => setEditDiscountVal(e.target.value)}
-                            placeholder={item.discount.toString()}
-                            className="w-full bg-white border border-stone-200 rounded px-1.5 py-0.5 text-[9px]"
-                          />
-                        </div>
-
-                        <div className="flex gap-1 self-end">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (editPriceVal && parseFloat(editPriceVal) !== item.price) {
-                                handleUpdatePrice(item.id, editPriceVal);
-                              } else if (editDiscountVal && parseInt(editDiscountVal, 10) !== item.discount) {
-                                handleUpdateDiscount(item.id, editDiscountVal);
-                              } else {
-                                setEditingItemId(null);
-                              }
-                            }}
-                            className="px-2 py-1 bg-green-600 text-white rounded text-[8px] uppercase font-bold cursor-pointer"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingItemId(null)}
-                            className="px-2 py-1 bg-stone-400 text-white rounded text-[8px] uppercase font-bold cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2.5 items-center">
-                        <button
-                          type="button"
-                          title="Edit item price or discount"
-                          onClick={() => {
-                            setEditingItemId(item.id);
-                            setEditPriceVal(item.price.toString());
-                            setEditDiscountVal(item.discount.toString());
-                          }}
-                          className="text-[#C67C4E] hover:text-[#aa7c11] flex items-center gap-1 cursor-pointer font-bold font-mono text-[8px]"
-                        >
-                          <Edit3 className="w-2.5 h-2.5" />
-                          EDIT
-                        </button>
-                        <button
-                          type="button"
-                          title={`Remove ${item.name} completely from cart (Qty: ${item.quantity})`}
-                          onClick={() => handleRemoveFromCart(item.id)}
-                          className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md font-mono font-bold text-[9px] uppercase cursor-pointer flex items-center gap-1 transition-all active:scale-95 shadow-2xs"
-                        >
-                          <Trash2 className="w-2.5 h-2.5 text-red-500" />
-                          <span>REMOVE ITEM</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+            <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+              {/* Box 4: PAX (Guest Count) */}
+              <div className="bg-white p-1.5 rounded-lg border border-stone-200 shadow-2xs flex items-center justify-between min-h-[42px]">
+                <div>
+                  <span className="text-[8px] font-bold text-stone-400 uppercase tracking-wider block">PAX (GUESTS)</span>
+                  <span className="font-bold font-mono text-stone-900 text-xs">{paxCount}</span>
                 </div>
-              );
-            })}
+                <div className="flex items-center gap-1 bg-stone-100 rounded border border-stone-250 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setPaxCount(prev => Math.max(1, prev - 1))}
+                    className="w-5 h-5 bg-white hover:bg-stone-200 rounded font-bold text-stone-700 flex items-center justify-center cursor-pointer shadow-2xs text-xs"
+                  >-</button>
+                  <button
+                    type="button"
+                    onClick={() => setPaxCount(prev => prev + 1)}
+                    className="w-5 h-5 bg-white hover:bg-stone-200 rounded font-bold text-stone-700 flex items-center justify-center cursor-pointer shadow-2xs text-xs"
+                  >+</button>
+                </div>
+              </div>
 
-            {cart.length === 0 && (
-              <div className="py-6 text-center text-stone-400 flex flex-col items-center justify-center gap-1.5">
-                <div className="p-2.5 bg-stone-100 rounded-full text-stone-300">
-                  <ShoppingCart className="w-5 h-5" />
+              {/* Box 5: Add Customer */}
+              <div className="bg-white p-1.5 rounded-lg border border-stone-200 shadow-2xs flex flex-col justify-between min-h-[42px]">
+                <span className="text-[8px] font-bold text-stone-400 uppercase tracking-wider block">ADD CUSTOMER</span>
+                <input
+                  type="text"
+                  maxLength={40}
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Guest Name"
+                  className="w-full bg-transparent font-medium text-stone-900 text-[10px] focus:outline-none placeholder:text-stone-300 py-0.5"
+                />
+              </div>
+            </div>
+
+            {/* Extended Contact Fields when Customer details are present or for Delivery */}
+            {(customerName || orderType === "delivery") && (
+              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                <input
+                  type="text"
+                  maxLength={15}
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value.replace(/[^\d+ -]/g, ""))}
+                  placeholder="Phone No. (Optional)"
+                  className="bg-white border border-stone-200 rounded-lg py-1 px-2 text-[10px] focus:outline-none focus:border-[#C67C4E]"
+                />
+                {orderType === "delivery" ? (
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    placeholder="Delivery Address *"
+                    className="bg-white border border-stone-200 rounded-lg py-1 px-2 text-[10px] focus:outline-none focus:border-purple-600"
+                  />
+                ) : (
+                  <input
+                    type="email"
+                    maxLength={50}
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="Email (Optional)"
+                    className="bg-white border border-stone-200 rounded-lg py-1 px-2 text-[10px] focus:outline-none focus:border-[#C67C4E]"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Active Table Notification & Quick Split/Transfer Pills */}
+            {activeOrderForSelectedTable && (
+              <div className="p-1.5 bg-amber-50 border border-amber-250 text-amber-900 rounded-lg flex items-center justify-between gap-1 font-medium text-[9px]">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full flex-shrink-0 animate-pulse" />
+                  <span className="truncate font-semibold">Active: ₹{activeOrderForSelectedTable.grandTotal}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSplitTargetOrder(activeOrderForSelectedTable);
+                      setShowSplitModal(true);
+                    }}
+                    className="px-1.5 py-0.5 bg-[#d4af37]/20 hover:bg-[#d4af37]/30 text-[#886915] font-bold rounded flex items-center gap-1 cursor-pointer text-[9px]"
+                  >
+                    <Receipt className="w-2.5 h-2.5" />
+                    <span>Split</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransferSourceTable(selectedTable);
+                      setTransferSourceOrder(activeOrderForSelectedTable);
+                      setShowTransferModal(true);
+                    }}
+                    className="px-1.5 py-0.5 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded flex items-center gap-1 cursor-pointer text-[9px]"
+                  >
+                    <ArrowRightLeft className="w-2.5 h-2.5" />
+                    <span>Transfer</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* CART ITEMS CONTAINER WITH KOT GROUPING */}
+          <div className="flex-grow overflow-y-auto max-h-[34vh] xl:max-h-[40vh] 2xl:max-h-[44vh] p-2.5 sm:p-3 space-y-3 min-h-[160px] bg-stone-50/50">
+            {cart.length === 0 ? (
+              <div className="py-8 text-center text-stone-400 flex flex-col items-center justify-center gap-1.5">
+                <div className="p-3 bg-stone-100 rounded-full text-stone-300">
+                  <ShoppingCart className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="font-semibold text-stone-600 text-xs">POS Cart is empty.</p>
-                  <p className="text-[9px] text-stone-400">Click catalog items or add a manual open item.</p>
+                  <p className="font-semibold text-stone-600 text-xs">POS Cart is empty</p>
+                  <p className="text-[9px] text-stone-400">Click catalog items to populate order</p>
                 </div>
               </div>
+            ) : (
+              <>
+                {/* Render Printed KOT Batches */}
+                {groupedKotItems.printedBatches.map((batch, idx) => (
+                  <div key={batch.kotNumber || `batch-${idx}`} className="space-y-1.5">
+                    {/* Printed KOT Header */}
+                    <div className="flex items-center justify-between bg-purple-100 border-l-4 border-purple-600 px-2 py-1 rounded-r-md text-[9px] font-mono text-purple-900 font-bold">
+                      <span className="flex items-center gap-1">
+                        <UtensilsCrossed className="w-3 h-3 text-purple-700" />
+                        <span>{batch.kotNumber || "KOT BATCH"}</span>
+                      </span>
+                      <span className="text-purple-700 text-[8px] bg-purple-200 px-1 py-0.2 rounded font-mono">PRINTED</span>
+                    </div>
+
+                    {/* Batch Items */}
+                    <div className="space-y-1.5 bg-white p-2 rounded-lg border border-purple-100 shadow-2xs divide-y divide-stone-100">
+                      {batch.items.map(item => {
+                        const isEditing = editingItemId === item.id;
+                        const lineItemTotal = ((item.price * item.quantity) - (item.price * item.quantity * (item.discount / 100)));
+
+                        return (
+                          <div key={item.id} className="pt-1.5 first:pt-0 flex flex-col gap-1">
+                            <div className="flex justify-between items-start gap-1">
+                              <div className="space-y-0.5 min-w-0 flex-1">
+                                <div className="font-bold text-stone-900 flex items-center gap-1 flex-wrap text-xs">
+                                  <span className="truncate max-w-[140px]" title={item.name}>{item.name}</span>
+                                  {item.customization && (
+                                    <span className="text-[8px] italic text-[#C67C4E] block truncate max-w-[140px]" title={item.customization}>
+                                      Note: {item.customization}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] font-mono text-stone-500">
+                                  ₹{item.price} x {item.quantity} {item.discount > 0 && <span className="text-green-600 font-bold">(-{item.discount}%)</span>}
+                                </div>
+                              </div>
+
+                              <div className="text-right space-y-1 flex-shrink-0">
+                                <span className="font-mono font-bold text-stone-900 block text-xs">
+                                  ₹{lineItemTotal.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                                </span>
+
+                                <div className="flex items-center border border-stone-200 rounded bg-stone-50 h-5 overflow-hidden select-none ml-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdjustQuantity(item.id, -1)}
+                                    className="px-1.5 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold text-xs"
+                                  >-</button>
+                                  <span className="px-1.5 font-mono text-xs font-bold text-stone-900">{item.quantity}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdjustQuantity(item.id, 1)}
+                                    className="px-1.5 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold text-xs"
+                                  >+</button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Item Actions */}
+                            <div className="flex items-center justify-between text-[8px] pt-0.5">
+                              {isEditing ? (
+                                <div className="flex gap-1 items-center bg-stone-50 p-1 rounded border border-stone-200 w-full">
+                                  <input
+                                    type="number"
+                                    value={editPriceVal}
+                                    onChange={(e) => setEditPriceVal(e.target.value)}
+                                    placeholder={`₹${item.price}`}
+                                    className="w-16 bg-white border border-stone-200 rounded px-1 py-0.5 text-[9px]"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (editPriceVal && parseFloat(editPriceVal) !== item.price) {
+                                        handleUpdatePrice(item.id, editPriceVal);
+                                      } else {
+                                        setEditingItemId(null);
+                                      }
+                                    }}
+                                    className="px-1.5 py-0.5 bg-green-600 text-white rounded font-bold cursor-pointer"
+                                  >Save</button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingItemId(null)}
+                                    className="px-1.5 py-0.5 bg-stone-400 text-white rounded font-bold cursor-pointer"
+                                  >✕</button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingItemId(item.id);
+                                      setEditPriceVal(item.price.toString());
+                                      setEditDiscountVal(item.discount.toString());
+                                    }}
+                                    className="text-[#C67C4E] hover:underline font-bold font-mono flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <Edit3 className="w-2.5 h-2.5" /> Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveFromCart(item.id)}
+                                    className="text-red-500 hover:underline font-bold font-mono flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-2.5 h-2.5" /> Remove
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Render Unprinted / New Items */}
+                {groupedKotItems.unprintedItems.length > 0 && (
+                  <div className="space-y-1.5">
+                    {/* Unprinted KOT Header */}
+                    <div className="flex items-center justify-between bg-amber-100 border-l-4 border-amber-500 px-2 py-1 rounded-r-md text-[9px] font-mono text-amber-900 font-bold">
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                        <span>NEW ITEMS (UNPRINTED)</span>
+                      </span>
+                      <span className="text-amber-800 text-[8px] bg-amber-200 px-1 py-0.2 rounded font-mono">READY</span>
+                    </div>
+
+                    {/* Unprinted Items List */}
+                    <div className="space-y-1.5 bg-white p-2 rounded-lg border border-amber-200/80 shadow-2xs divide-y divide-stone-100">
+                      {groupedKotItems.unprintedItems.map(item => {
+                        const isEditing = editingItemId === item.id;
+                        const lineItemTotal = ((item.price * item.quantity) - (item.price * item.quantity * (item.discount / 100)));
+
+                        return (
+                          <div key={item.id} className="pt-1.5 first:pt-0 flex flex-col gap-1">
+                            <div className="flex justify-between items-start gap-1">
+                              <div className="space-y-0.5 min-w-0 flex-1">
+                                <div className="font-bold text-stone-900 flex items-center gap-1 flex-wrap text-xs">
+                                  <span className="truncate max-w-[140px]" title={item.name}>{item.name}</span>
+                                  <span className="bg-amber-50 border border-amber-200 text-amber-800 text-[7px] font-bold px-1 py-0.2 rounded font-mono animate-pulse">
+                                    NEW
+                                  </span>
+                                  {item.customization && (
+                                    <span className="text-[8px] italic text-[#C67C4E] block truncate max-w-[140px]" title={item.customization}>
+                                      Note: {item.customization}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] font-mono text-stone-500">
+                                  ₹{item.price} x {item.quantity} {item.discount > 0 && <span className="text-green-600 font-bold">(-{item.discount}%)</span>}
+                                </div>
+                              </div>
+
+                              <div className="text-right space-y-1 flex-shrink-0">
+                                <span className="font-mono font-bold text-stone-900 block text-xs">
+                                  ₹{lineItemTotal.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                                </span>
+
+                                <div className="flex items-center border border-stone-200 rounded bg-stone-50 h-5 overflow-hidden select-none ml-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdjustQuantity(item.id, -1)}
+                                    className="px-1.5 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold text-xs"
+                                  >-</button>
+                                  <span className="px-1.5 font-mono text-xs font-bold text-stone-900">{item.quantity}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdjustQuantity(item.id, 1)}
+                                    className="px-1.5 text-stone-500 hover:bg-stone-200 cursor-pointer h-full font-bold text-xs"
+                                  >+</button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Item Actions */}
+                            <div className="flex items-center justify-between text-[8px] pt-0.5">
+                              {isEditing ? (
+                                <div className="flex gap-1 items-center bg-stone-50 p-1 rounded border border-stone-200 w-full">
+                                  <input
+                                    type="number"
+                                    value={editPriceVal}
+                                    onChange={(e) => setEditPriceVal(e.target.value)}
+                                    placeholder={`₹${item.price}`}
+                                    className="w-16 bg-white border border-stone-200 rounded px-1 py-0.5 text-[9px]"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (editPriceVal && parseFloat(editPriceVal) !== item.price) {
+                                        handleUpdatePrice(item.id, editPriceVal);
+                                      } else {
+                                        setEditingItemId(null);
+                                      }
+                                    }}
+                                    className="px-1.5 py-0.5 bg-green-600 text-white rounded font-bold cursor-pointer"
+                                  >Save</button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingItemId(null)}
+                                    className="px-1.5 py-0.5 bg-stone-400 text-white rounded font-bold cursor-pointer"
+                                  >✕</button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingItemId(item.id);
+                                      setEditPriceVal(item.price.toString());
+                                      setEditDiscountVal(item.discount.toString());
+                                    }}
+                                    className="text-[#C67C4E] hover:underline font-bold font-mono flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <Edit3 className="w-2.5 h-2.5" /> Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveFromCart(item.id)}
+                                    className="text-red-500 hover:underline font-bold font-mono flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-2.5 h-2.5" /> Remove
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Promos & Coupon codes */}
-          <div className="p-2 border-t border-stone-200 bg-stone-50 space-y-1 flex-shrink-0">
-            <form onSubmit={handleApplyCoupon} className="flex gap-1.5">
+          {/* TOTAL QUANTITY & GRAND TOTAL SUMMARY BANNER (Teal Theme) */}
+          <div className="bg-teal-700 text-white px-3 py-2 flex items-center justify-between font-mono shadow-xs border-t border-b border-teal-800 flex-shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-teal-100 text-[11px] font-sans font-semibold">Quantity:</span>
+              <span className="bg-teal-900 text-teal-100 px-2 py-0.5 rounded font-bold text-xs border border-teal-600/50">
+                {totalCartQuantity}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-teal-100 text-[11px] font-sans font-semibold">Total (With Taxes):</span>
+              <span className="text-white font-bold text-sm tracking-tight">
+                ₹{cartTotals.grandTotal.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+
+          {/* ORDER INSTRUCTIONS INPUT */}
+          <div className="p-2 bg-stone-50 border-b border-stone-200 flex-shrink-0">
+            <div className="flex items-center gap-1.5 bg-white border border-stone-300 rounded-lg px-2 py-1 shadow-2xs">
+              <MessageSquare className="w-3.5 h-3.5 text-stone-400 shrink-0" />
               <input
                 type="text"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                placeholder="Promo Code (e.g. WELCOME10)"
-                className="bg-white border border-stone-200 px-2.5 py-1 rounded-lg text-[10px] flex-grow uppercase focus:outline-none focus:border-[#C67C4E]"
+                maxLength={150}
+                value={orderInstructions}
+                onChange={(e) => setOrderInstructions(e.target.value)}
+                placeholder="Order Instructions (e.g. Less spicy, Chef notes...)"
+                className="w-full text-[10px] text-stone-800 placeholder:text-stone-400 focus:outline-none"
               />
-              <button
-                type="submit"
-                className="px-2.5 py-1 bg-stone-850 hover:bg-stone-900 text-white rounded-lg text-[9px] uppercase tracking-wider font-bold cursor-pointer flex-shrink-0"
-              >
-                Apply
-              </button>
-            </form>
-
-            {couponError && (
-              <p className="text-red-600 text-[9px] font-mono leading-tight">{couponError}</p>
-            )}
-            {appliedCoupon && (
-              <div className="flex justify-between items-center bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-lg text-[9px]">
-                <span className="font-bold truncate max-w-[170px]" title={`PROMO ACTIVE: ${appliedCoupon.code}`}>PROMO ACTIVE: {appliedCoupon.code}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppliedCoupon(null);
-                    LocalDB.addAuditLog("POS Coupon Cleared", "Cleared global promo coupon", `POS (${currentRole})`);
-                  }}
-                  className="text-green-800 hover:text-green-950 font-bold ml-2 cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
+            </div>
           </div>
 
-          {/* Bill Summary Calculations & Dispatch */}
-          <div className="p-2.5 sm:p-3 bg-stone-900 text-stone-200 space-y-2 flex-shrink-0">
-            <div className="space-y-1 text-[10px] font-sans">
-              <div className="flex justify-between text-stone-400">
-                <span>Cart Subtotal</span>
-                <span className="font-mono whitespace-nowrap">₹{cartTotals.subtotal.toLocaleString("en-IN")}</span>
-              </div>
-              {cartTotals.itemDiscounts > 0 && (
-                <div className="flex justify-between text-green-400">
-                  <span>Item Discounts</span>
-                  <span className="font-mono whitespace-nowrap">-₹{cartTotals.itemDiscounts.toLocaleString("en-IN")}</span>
-                </div>
-              )}
-              {cartTotals.couponDiscount > 0 && (
-                <div className="flex justify-between text-green-400">
-                  <span>Coupon ({appliedCoupon?.code})</span>
-                  <span className="font-mono whitespace-nowrap">-₹{cartTotals.couponDiscount.toLocaleString("en-IN")}</span>
-                </div>
-              )}
-              {cartTotals.gstEnabled && cartTotals.gst > 0 && (
-                <div className="flex justify-between text-stone-400">
-                  <span>Taxes (CGST {cartTotals.cgstRate}% & SGST {cartTotals.sgstRate}%)</span>
-                  <span className="font-mono whitespace-nowrap">₹{cartTotals.gst.toLocaleString("en-IN")}</span>
-                </div>
-              )}
-              {cartTotals.packaging > 0 && (
-                <div className="flex justify-between text-stone-400">
-                  <span>Packaging Charge</span>
-                  <span className="font-mono whitespace-nowrap">₹{cartTotals.packaging.toLocaleString("en-IN")}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-stone-800 pt-1.5 font-bold text-white text-xs sm:text-sm">
-                <span className="text-[#C67C4E]">GRAND TOTAL</span>
-                <span className="text-[#C67C4E] font-mono whitespace-nowrap">₹{cartTotals.grandTotal.toLocaleString("en-IN")}</span>
-              </div>
-            </div>
-
-            {/* Settlement & Payment Method Selector Tabs */}
-            <div className="bg-stone-900/90 p-2 rounded-xl border border-stone-800 flex flex-col gap-1.5 shadow-sm">
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="font-bold text-amber-400 uppercase tracking-wider text-[9px] sm:text-[10px] font-mono flex items-center gap-1 whitespace-nowrap">
-                  <span>SETTLEMENT:</span>
-                </span>
-
-                {/* 2 Main Payment Mode Tabs (UPI & Cash) + Card */}
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPosPaymentMethod("UPI")}
-                    className={`px-2.5 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap border ${posPaymentMethod === "UPI"
-                      ? "bg-purple-600 text-white border-purple-400 shadow-sm font-mono"
-                      : "bg-stone-800 text-stone-300 hover:bg-stone-700 border-stone-700"
-                      }`}
-                  >
-                    <span>📱</span>
-                    <span>1. UPI</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPosPaymentMethod("Cash")}
-                    className={`px-2.5 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap border ${posPaymentMethod === "Cash"
-                      ? "bg-emerald-600 text-white border-emerald-400 shadow-sm font-mono"
-                      : "bg-stone-800 text-stone-300 hover:bg-stone-700 border-stone-700"
-                      }`}
-                  >
-                    <span>💵</span>
-                    <span>2. CASH</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPosPaymentMethod("Card")}
-                    className={`px-2 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap border ${posPaymentMethod === "Card"
-                      ? "bg-blue-600 text-white border-blue-400 shadow-sm font-mono"
-                      : "bg-stone-800 text-stone-300 hover:bg-stone-700 border-stone-700"
-                      }`}
-                  >
-                    <span>💳</span>
-                    <span>CARD</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (activeOrderForSelectedTable) {
-                        setSplitTargetOrder(activeOrderForSelectedTable);
-                        setShowSplitModal(true);
-                      } else if (cart.length > 0) {
-                        const finalOrderItems = cart.map(item => ({
-                          menuItemId: item.isManual ? "manual" : item.id.replace("reg-", ""),
-                          name: item.name,
-                          price: item.price - (item.price * (item.discount / 100)),
-                          quantity: item.quantity,
-                          customization: item.customization,
-                          isManual: item.isManual,
-                          category: item.category,
-                          gstRate: item.gstRate,
-                          discount: item.discount,
-                          hsnCode: item.hsnCode,
-                          notes: item.customization
-                        }));
-
-                        const defaultName = orderType === "dine-in"
-                          ? "Walk-in Guest"
-                          : orderType === "takeaway"
-                            ? "Takeaway Guest"
-                            : "Delivery Customer";
-
-                        const orderPayload: Omit<Order, "id" | "createdAt"> = {
-                          customerName: customerName.trim() || defaultName,
-                          phoneNumber: customerPhone.trim() || (orderType === "dine-in" ? "+91 00000 00000" : ""),
-                          email: customerEmail.trim() || "walkin@webrajya.com",
-                          orderType: orderType,
-                          tableNumber: orderType === "dine-in" ? selectedTable : undefined,
-                          address: orderType === "delivery" ? customerAddress.trim() : undefined,
-                          items: finalOrderItems,
-                          subtotal: cartTotals.subtotal - cartTotals.itemDiscounts,
-                          gst: cartTotals.gst,
-                          packagingCharge: cartTotals.packaging,
-                          discountAmount: cartTotals.couponDiscount,
-                          appliedCoupon: appliedCoupon?.code || undefined,
-                          grandTotal: cartTotals.grandTotal,
-                          paymentStatus: "Pending",
-                          orderStatus: "New Order",
-                          paymentMethod: posPaymentMethod,
-                          kotPrintStatus: "Pending",
-                          billPrintStatus: "Pending",
-                          source: "POS",
-                          billedBy: `POS (${currentRole})`
-                        };
-
-                        try {
-                          const newOrd = await LocalDB.apiAddOrder(orderPayload as any);
-                          onOrderPlaced();
-                          setSplitTargetOrder(newOrd);
-                          setShowSplitModal(true);
-                        } catch (err: any) {
-                          alert("Could not initialize settlement: " + (err.message || "Unknown error"));
-                        }
-                      } else {
-                        alert("Please add items to cart or select an active table order to settle.");
-                      }
-                    }}
-                    className="px-2.5 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-white border border-amber-300 shadow-sm font-mono active:scale-95"
-                    title="Open Settle Bill window (Cash, UPI, Card, 50/50 Split)"
-                  >
-                    <span>⚡</span>
-                    <span>SETTLE NOW</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Dine-in tab status option if dine-in mode */}
-              {orderType === "dine-in" && (
-                <div className="flex justify-between items-center pt-1 border-t border-stone-800/80 text-[9px]">
-                  <span className="text-stone-400 font-medium">Table Tab:</span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setPosPaymentStatus("Pending")}
-                      className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Pending"
-                        ? "bg-[#C67C4E] text-white shadow-xs"
-                        : "bg-stone-800 text-stone-400 hover:bg-stone-700 border border-stone-700"
-                        }`}
-                    >
-                      Unpaid (Open Tab)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPosPaymentStatus("Paid")}
-                      className={`px-2 py-0.5 rounded font-bold uppercase tracking-wide transition-all cursor-pointer ${posPaymentStatus === "Paid"
-                        ? "bg-green-600 text-white shadow-xs"
-                        : "bg-stone-800 text-stone-400 hover:bg-stone-700 border border-stone-700"
-                        }`}
-                    >
-                      Settle Now
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Final checkout dispatch triggers: PRINT KOT & PRINT BILL */}
-            <div className="grid grid-cols-2 gap-2 w-full pt-1">
-              {/* BUTTON 1: PRINT KOT (Kitchen Order Ticket - Quantity & Items Only, NO Sales Entry) */}
+          {/* BOTTOM STREAMLINED ACTION BUTTONS BAR */}
+          <div className="p-2 sm:p-2.5 bg-stone-900 text-white space-y-2 flex-shrink-0">
+            <div className="grid grid-cols-4 gap-1.5">
+              {/* 1. CANCEL */}
               <button
                 type="button"
-                id="pos-print-kot-btn"
-                disabled={cart.length === 0 || isPrintingKOT || isFinalizing}
-                onClick={handleSaveOrder}
-                title={cart.length === 0 ? "Add items to cart to print KOT" : "Print Kitchen Order Ticket (Qty & Items only - will not add to Sales/Dashboard)"}
-                className={`py-2.5 sm:py-3 font-mono font-bold uppercase tracking-wider text-[10px] sm:text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${cart.length === 0 || isPrintingKOT || isFinalizing
-                  ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
-                  : justPrintedKOT
-                    ? "bg-emerald-700 text-white shadow-md cursor-pointer border border-emerald-500"
-                    : "bg-stone-800 hover:bg-stone-700 text-amber-300 hover:text-amber-200 border border-amber-600/40 shadow-sm cursor-pointer active:scale-[0.98]"
+                onClick={handleClearCart}
+                disabled={cart.length === 0}
+                className={`py-2 px-1 rounded-lg font-mono font-bold text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${cart.length === 0
+                  ? "bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700/50"
+                  : "bg-red-600 hover:bg-red-700 text-white shadow-xs cursor-pointer active:scale-95"
                   }`}
+                title="Clear all cart items"
               >
-                {isPrintingKOT ? (
-                  <span className="flex items-center justify-center gap-1.5 text-stone-200">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                    <span>KOT...</span>
-                  </span>
-                ) : justPrintedKOT ? (
-                  <span className="flex items-center justify-center gap-1 text-emerald-200">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>KOT ✓</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <UtensilsCrossed className="w-3.5 h-3.5 text-amber-400" />
-                    <span>PRINT KOT {cart.filter(c => !c.isKotSent).length > 0 ? `(${cart.filter(c => !c.isKotSent).length} NEW)` : ""}</span>
-                  </span>
-                )}
+                <Trash2 className="w-3 h-3" />
+                <span>CANCEL</span>
               </button>
 
-              {/* BUTTON 2: PRINT BILL (Finalize Checkout & Official Customer Bill - Enters Dashboard & Sales) */}
+              {/* 2. SETTLE NOW */}
               <button
                 type="button"
-                id="pos-print-bill-btn"
-                disabled={cart.length === 0 || isFinalizing || isPrintingKOT}
+                onClick={async () => {
+                  if (activeOrderForSelectedTable) {
+                    setSplitTargetOrder(activeOrderForSelectedTable);
+                    setShowSplitModal(true);
+                  } else if (cart.length > 0) {
+                    handleOpenBillPreview();
+                  } else {
+                    alert("Cart is empty.");
+                  }
+                }}
+                disabled={cart.length === 0 && !activeOrderForSelectedTable}
+                className={`py-2 px-1 rounded-lg font-mono font-bold text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${cart.length === 0 && !activeOrderForSelectedTable
+                  ? "bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700/50"
+                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer active:scale-95"
+                  }`}
+                title="Settle Bill & Collect Payment"
+              >
+                <span>⚡</span>
+                <span>SETTLE</span>
+              </button>
+
+              {/* 3. VIEW BILL */}
+              <button
+                type="button"
                 onClick={handleOpenBillPreview}
-                title={cart.length === 0 ? "Add items to cart to print bill" : "Finalize order, record into Sales Dashboard, and print Customer Bill"}
-                className={`py-2.5 sm:py-3 font-mono font-bold uppercase tracking-wider text-[10px] sm:text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all ${cart.length === 0 || isFinalizing || isPrintingKOT
-                  ? "opacity-40 cursor-not-allowed bg-stone-800 text-stone-400 border border-stone-700/60"
-                  : justPrinted
-                    ? "bg-emerald-600 text-white shadow-md cursor-pointer"
-                    : "bg-gradient-to-r from-[#C67C4E] to-[#aa7c11] text-white hover:from-[#aa7c11] hover:to-[#C67C4E] shadow-md cursor-pointer active:scale-[0.98]"
+                disabled={cart.length === 0 || isFinalizing}
+                className={`py-2 px-1 rounded-lg font-mono font-bold text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${cart.length === 0 || isFinalizing
+                  ? "bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700/50"
+                  : "bg-[#C67C4E] hover:bg-[#aa7c11] text-white shadow-xs cursor-pointer active:scale-95"
                   }`}
+                title="View Bill Preview & Print"
               >
-                {isFinalizing ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Billing...</span>
-                  </span>
-                ) : justPrinted ? (
-                  <span className="flex items-center justify-center gap-1 text-emerald-200">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Bill ✓</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Receipt className="w-3.5 h-3.5" />
-                    <span>PRINT BILL</span>
-                    <ArrowRight className="w-3 h-3 opacity-80" />
-                  </span>
-                )}
+                <Receipt className="w-3 h-3" />
+                <span>VIEW BILL</span>
               </button>
-            </div>
 
-            {/* Distinction Micro-Legend */}
-            <div className="flex items-center justify-between px-1 text-[8px] font-mono text-stone-400 select-none">
-              <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 inline-block"></span>
-                <span>KOT: Kitchen only (Qty & Items)</span>
-              </span>
-              <span className="flex items-center gap-1 text-emerald-400/90">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                <span>BILL: Adds to Sales & Dashboard</span>
-              </span>
+              {/* 4. PRINT KOT */}
+              <button
+                type="button"
+                onClick={handleSaveOrder}
+                disabled={cart.length === 0 || isPrintingKOT || isFinalizing}
+                className={`py-2 px-1 rounded-lg font-mono font-bold text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${cart.length === 0 || isPrintingKOT || isFinalizing
+                  ? "bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700/50"
+                  : "bg-purple-600 hover:bg-purple-500 text-white shadow-xs cursor-pointer active:scale-95"
+                  }`}
+                title="Print Kitchen Order Ticket"
+              >
+                <UtensilsCrossed className="w-3 h-3" />
+                <span>KOT</span>
+              </button>
             </div>
           </div>
 
