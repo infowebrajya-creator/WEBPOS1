@@ -1849,23 +1849,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </button>
         </div>
 
-        {/* Diagnostic controls, staff profile and countdown */}
+        {/* Diagnostic controls & audio alert toggle */}
         <div className="flex items-center gap-2 md:gap-3 text-xs font-mono">
-          {/* Authenticated User Profile Badge */}
-          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-left">
-            <div className="w-6 h-6 rounded-lg bg-amber-100 text-[#aa7c11] flex items-center justify-center font-bold text-[10px] shrink-0 border border-amber-200">
-              <User className="w-3.5 h-3.5" />
-            </div>
-            <div className="hidden sm:block">
-              <div className="text-[11px] font-bold text-stone-900 leading-tight">
-                {activeStaff.name || "Owner"}
-              </div>
-              <div className="text-[9px] text-stone-500 font-mono">
-                <span className="font-semibold text-[#aa7c11]">{activeStaff.role || "Owner"}</span>
-              </div>
-            </div>
-          </div>
-
           {/* Sound settings */}
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
@@ -1873,17 +1858,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             title={soundEnabled ? "Disable audio alerts" : "Enable audio alerts"}
           >
             {soundEnabled ? <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-[#aa7c11]" /> : <VolumeX className="w-3.5 h-3.5 md:w-4 md:h-4 text-stone-400" />}
-          </button>
-
-          {/* Sidebar Collapse Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition-all cursor-pointer border border-stone-250 text-[10px] font-mono font-bold uppercase shadow-2xs"
-            title={isSidebarCollapsed ? "Expand Sidebar Menu" : "Collapse Sidebar for Full Workspace"}
-          >
-            <Sliders className="w-3.5 h-3.5 text-[#C67C4E]" />
-            <span>{isSidebarCollapsed ? "Expand Sidebar" : "Compact Sidebar"}</span>
           </button>
 
           <button
