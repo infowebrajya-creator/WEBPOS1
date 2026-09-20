@@ -102,6 +102,12 @@ export interface Order {
   addOnCount?: number;
   shiftId?: string;
   billedBy?: string;
+  paymentBreakdown?: {
+    cash: number;
+    upi: number;
+    card: number;
+    changeReturned?: number;
+  };
 
   // Lifecycle Timestamps
   confirmedAt?: string;

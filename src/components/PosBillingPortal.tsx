@@ -2253,6 +2253,75 @@ export default function PosBillingPortal({
                     <span>💳</span>
                     <span>CARD</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (activeOrderForSelectedTable) {
+                        setSplitTargetOrder(activeOrderForSelectedTable);
+                        setShowSplitModal(true);
+                      } else if (cart.length > 0) {
+                        const finalOrderItems = cart.map(item => ({
+                          menuItemId: item.isManual ? "manual" : item.id.replace("reg-", ""),
+                          name: item.name,
+                          price: item.price - (item.price * (item.discount / 100)),
+                          quantity: item.quantity,
+                          customization: item.customization,
+                          isManual: item.isManual,
+                          category: item.category,
+                          gstRate: item.gstRate,
+                          discount: item.discount,
+                          hsnCode: item.hsnCode,
+                          notes: item.customization
+                        }));
+
+                        const defaultName = orderType === "dine-in"
+                          ? "Walk-in Guest"
+                          : orderType === "takeaway"
+                            ? "Takeaway Guest"
+                            : "Delivery Customer";
+
+                        const orderPayload: Omit<Order, "id" | "createdAt"> = {
+                          customerName: customerName.trim() || defaultName,
+                          phoneNumber: customerPhone.trim() || (orderType === "dine-in" ? "+91 00000 00000" : ""),
+                          email: customerEmail.trim() || "walkin@webrajya.com",
+                          orderType: orderType,
+                          tableNumber: orderType === "dine-in" ? selectedTable : undefined,
+                          address: orderType === "delivery" ? customerAddress.trim() : undefined,
+                          items: finalOrderItems,
+                          subtotal: cartTotals.subtotal - cartTotals.itemDiscounts,
+                          gst: cartTotals.gst,
+                          packagingCharge: cartTotals.packaging,
+                          discountAmount: cartTotals.couponDiscount,
+                          appliedCoupon: appliedCoupon?.code || undefined,
+                          grandTotal: cartTotals.grandTotal,
+                          paymentStatus: "Pending",
+                          orderStatus: "New Order",
+                          paymentMethod: posPaymentMethod,
+                          kotPrintStatus: "Pending",
+                          billPrintStatus: "Pending",
+                          source: "POS",
+                          billedBy: `POS (${currentRole})`
+                        };
+
+                        try {
+                          const newOrd = await LocalDB.apiAddOrder(orderPayload as any);
+                          onOrderPlaced();
+                          setSplitTargetOrder(newOrd);
+                          setShowSplitModal(true);
+                        } catch (err: any) {
+                          alert("Could not initialize settlement: " + (err.message || "Unknown error"));
+                        }
+                      } else {
+                        alert("Please add items to cart or select an active table order to settle.");
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-md font-bold uppercase tracking-wider text-[9px] sm:text-[10px] transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-white border border-amber-300 shadow-sm font-mono active:scale-95"
+                    title="Open Settle Bill window (Cash, UPI, Card, 50/50 Split)"
+                  >
+                    <span>⚡</span>
+                    <span>SETTLE NOW</span>
+                  </button>
                 </div>
               </div>
 

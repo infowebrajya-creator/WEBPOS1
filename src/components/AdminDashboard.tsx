@@ -2088,7 +2088,26 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                   {order.orderStatus}
                                 </span>
                               </td>
-                              <td className="p-3 text-right font-mono font-bold text-stone-900">₹{order.grandTotal}</td>
+                              <td className="p-3 text-right font-mono font-bold text-stone-900">
+                                <div>₹{order.grandTotal}</div>
+                                {order.paymentMethod && (
+                                  <div className="text-[9px] font-sans font-normal text-stone-500 mt-0.5 flex items-center justify-end gap-1">
+                                    {order.paymentMethod.includes("Split") || order.paymentMethod.includes("+") ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-medium">
+                                        🔀 {order.paymentMethod}
+                                      </span>
+                                    ) : order.paymentMethod.toLowerCase().includes("upi") || order.paymentMethod.toLowerCase().includes("online") ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                                        📱 {order.paymentMethod}
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        💵 {order.paymentMethod}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
                               <td className="p-3 text-center flex items-center justify-center gap-1.5">
                                 <button
                                   onClick={() => setSelectedOrderDetails(order)}
@@ -2096,6 +2115,17 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                 >
                                   View
                                 </button>
+                                {order.orderStatus !== "Cancelled" && order.paymentStatus !== "Paid" && (
+                                  <button
+                                    onClick={() => {
+                                      setSplitTargetOrder(order);
+                                      setShowSplitModal(true);
+                                    }}
+                                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold uppercase transition-colors cursor-pointer shadow-xs font-mono"
+                                  >
+                                    Settle
+                                  </button>
+                                )}
                                 {order.orderStatus !== "Cancelled" && (
                                   <button
                                     onClick={() => {
