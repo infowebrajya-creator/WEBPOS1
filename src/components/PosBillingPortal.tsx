@@ -1582,16 +1582,16 @@ export default function PosBillingPortal({
           </div>
 
           {/* Search Bar & Manual Add Row */}
-          <div className="bg-white p-2.5 rounded-xl border border-stone-200 shadow-2xs space-y-2">
-            <div className="flex gap-2">
+          <div className="bg-white p-3 rounded-2xl border border-stone-200 shadow-xs space-y-3">
+            <div className="flex gap-2.5 items-center">
               <div className="relative flex-grow">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Type specific menu catalog item..."
-                  className="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 focus:border-[#C67C4E] rounded-xl text-xs focus:outline-none transition-colors"
+                  placeholder="Search catalog menu items (e.g. Masala Dosa, Coffee...)"
+                  className="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-200/80 focus:border-[#C67C4E] rounded-xl text-xs sm:text-sm font-sans placeholder:text-stone-400 focus:outline-none transition-all shadow-2xs"
                 />
               </div>
 
@@ -1607,71 +1607,126 @@ export default function PosBillingPortal({
                     () => setShowManualModal(true)
                   );
                 }}
-                className="px-2.5 py-1.5 bg-gradient-to-r from-[#C67C4E] to-[#aa7c11] hover:from-[#aa7c11] hover:to-[#C67C4E] text-white font-mono font-bold uppercase tracking-wider text-[10px] rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1 shrink-0"
+                className="px-3.5 py-2 bg-[#C67C4E] hover:bg-[#b26938] text-white font-sans font-bold uppercase tracking-wider text-xs rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Manual</span>
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>+ MANUAL</span>
               </button>
             </div>
 
             {/* Category horizontal badges */}
-            <div className="flex gap-1 overflow-x-auto pb-0.5 no-scrollbar select-none">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`px-2 py-0.5 rounded-md text-[9px] uppercase font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer border ${activeCategory === cat
-                      ? "bg-[#C67C4E] text-white border-[#C67C4E]"
-                      : "bg-stone-50 text-stone-500 border-stone-200 hover:text-stone-850 hover:bg-stone-100"
+            <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar select-none">
+              {categories.map((cat) => {
+                const isAll = cat === "All";
+                const displayCat = isAll ? "ALL" : cat.toUpperCase().replace(/\s+/g, "-");
+                const isActive = activeCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all whitespace-nowrap cursor-pointer ${
+                      isActive
+                        ? "bg-[#C67C4E] text-white shadow-2xs"
+                        : "bg-stone-100 text-stone-600 hover:bg-stone-200/80 hover:text-stone-900 border border-stone-200/60"
                     }`}
-                >
-                  {cat}
-                </button>
-              ))}
+                  >
+                    {displayCat}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Menu Catalog Grid - Direct Click to Add to Cart */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-2 overflow-y-auto max-h-[calc(100vh-270px)] min-h-[280px] pr-0.5">
+          {/* Menu Catalog Grid - Clean 3-Column Light Theme Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 overflow-y-auto max-h-[calc(100vh-250px)] min-h-[280px] pr-0.5">
             {filteredMenuItems.map((item) => {
               const itemQty = cart.filter(c => c.name === item.name).reduce((sum, c) => sum + c.quantity, 0);
+              const isSelected = itemQty > 0;
 
               return (
-                <button
+                <div
                   key={item.id}
-                  type="button"
                   onClick={() => handleAddRegularToCart(item)}
-                  className={`p-2.5 rounded-xl border text-left transition-all hover:shadow-xs active:scale-[0.98] cursor-pointer group flex flex-col justify-between min-h-[105px] relative ${itemQty > 0
-                      ? "bg-amber-50/40 border-[#C67C4E] shadow-2xs ring-1 ring-[#C67C4E]/30"
-                      : "bg-white border-stone-200 hover:border-[#C67C4E]"
-                    }`}
+                  className={`p-3.5 rounded-2xl border text-left transition-all duration-200 hover:shadow-md cursor-pointer group flex flex-col justify-between min-h-[145px] relative ${
+                    isSelected
+                      ? "bg-amber-50/20 border-[#C67C4E] ring-2 ring-[#C67C4E]/40 shadow-xs"
+                      : "bg-white border-stone-200 hover:border-stone-300 shadow-2xs"
+                  }`}
                 >
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-start gap-1">
-                      <span className={`text-[7px] px-1.5 py-0.2 rounded-full font-mono font-bold uppercase border ${item.isVeg ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-600 border-red-100"
-                        }`}>
-                        {item.isVeg ? "Veg" : "Non-Veg"}
-                      </span>
-                      {itemQty > 0 ? (
-                        <span className="bg-[#C67C4E] text-white font-mono font-bold text-[9px] px-1.5 py-0.5 rounded-full shadow-2xs">
-                          {itemQty} in cart
+                  <div>
+                    {/* Top Row: Veg Icon & Popular Badge */}
+                    <div className="flex justify-between items-center gap-1.5 mb-2">
+                      {/* Square Pure Veg Green Icon / Red Non-Veg Icon */}
+                      <div
+                        className={`w-4 h-4 border-[1.5px] p-[1.5px] flex items-center justify-center rounded-[3px] shrink-0 ${
+                          item.isVeg !== false
+                            ? "border-emerald-600"
+                            : "border-red-600"
+                        }`}
+                        title={item.isVeg !== false ? "Pure Veg" : "Non-Veg"}
+                      >
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            item.isVeg !== false ? "bg-emerald-600" : "bg-red-600"
+                          }`}
+                        />
+                      </div>
+
+                      {/* POPULAR Badge */}
+                      {(item.isBestseller || item.isChefSpecial) && (
+                        <span className="bg-amber-100/90 text-amber-900 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md tracking-wider font-mono">
+                          POPULAR
                         </span>
-                      ) : item.isBestseller ? (
-                        <span className="bg-amber-50 text-amber-700 text-[7px] font-bold px-1 rounded-sm border border-amber-100">POPULAR</span>
+                      )}
+                    </div>
+
+                    {/* Middle Row: Title and Image */}
+                    <div className="flex justify-between items-start gap-2 mb-3">
+                      <h5
+                        className={`font-bold text-sm sm:text-base leading-snug line-clamp-2 transition-colors ${
+                          isSelected ? "text-[#C67C4E]" : "text-stone-900 group-hover:text-[#C67C4E]"
+                        }`}
+                        title={item.name}
+                      >
+                        {item.name}
+                      </h5>
+
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover shrink-0 border border-stone-150 shadow-2xs"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
                       ) : null}
                     </div>
-                    <h5 className="font-serif font-bold text-stone-850 group-hover:text-[#C67C4E] transition-colors leading-tight line-clamp-2 text-xs mt-0.5" title={item.name}>
-                      {item.name}
-                    </h5>
                   </div>
 
-                  <div className="flex justify-between items-center border-t border-stone-100 pt-1.5 mt-2">
-                    <span className="text-stone-900 font-mono font-bold text-xs">₹{item.price.toLocaleString("en-IN")}</span>
-                    <span className="text-[10px] font-mono font-bold text-[#C67C4E] group-hover:underline">
-                      + Add
+                  {/* Bottom Row: Price & + ADD Button */}
+                  <div className="flex justify-between items-center border-t border-stone-100 pt-2.5 mt-auto">
+                    <span className="text-stone-900 font-sans font-bold text-base sm:text-lg">
+                      ₹{item.price.toLocaleString("en-IN")}
                     </span>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddRegularToCart(item);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-[#C67C4E] text-white shadow-2xs hover:bg-[#b26938]"
+                          : "bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-200/80"
+                      }`}
+                    >
+                      <span>+ ADD</span>
+                      {itemQty > 0 && <span className="ml-1 text-[10px] bg-white/30 px-1.5 py-0.2 rounded-full">({itemQty})</span>}
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
