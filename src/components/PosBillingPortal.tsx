@@ -1680,8 +1680,8 @@ export default function PosBillingPortal({
                       )}
                     </div>
 
-                    {/* Middle Row: Title and Image */}
-                    <div className="flex justify-between items-start gap-2 mb-3">
+                    {/* Middle Row: Title */}
+                    <div className="mb-3">
                       <h5
                         className={`font-bold text-sm sm:text-base leading-snug line-clamp-2 transition-colors ${
                           isSelected ? "text-[#C67C4E]" : "text-stone-900 group-hover:text-[#C67C4E]"
@@ -1690,17 +1690,6 @@ export default function PosBillingPortal({
                       >
                         {item.name}
                       </h5>
-
-                      {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover shrink-0 border border-stone-150 shadow-2xs"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
-                          }}
-                        />
-                      ) : null}
                     </div>
                   </div>
 
